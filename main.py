@@ -4,19 +4,22 @@ import gym
 import lux_gym.agents.rule_agent as rule_agent
 
 
-def show_gym(number_of_iterations):
+def show_gym(number_of_iterations, policy):
     env = gym.make('lux_gym:lux-v0', debug=True)
-    configuration = env.configuration()
-    policy = rule_agent.agent
+    configuration = env.configuration
     for i in range(number_of_iterations):
-        states = env.reset()
-        actions_1 = policy(states[0], configuration)
-        actions_2 = policy(states[1], configuration)
+        # observations are for rule based agents
+        # processed_observations are for conv net based agents
+        observations, processed_observations = env.reset()
+        game_states = env.game_states
+        actions_1 = policy(observations[0], configuration, game_states[0])
+        actions_2 = policy(observations[1], configuration, game_states[1])
 
         for step in range(configuration.episodeSteps):
-            dones, states = env.step((actions_1, actions_2))
-            actions_1 = policy(states[0], configuration)
-            actions_2 = policy(states[1], configuration)
+            dones, observations, processed_observations = env.step((actions_1, actions_2))
+            game_states = env.game_states
+            actions_1 = policy(observations[0], configuration, game_states[0])
+            actions_2 = policy(observations[1], configuration, game_states[1])
             if any(dones):
                 break
 
@@ -24,7 +27,8 @@ def show_gym(number_of_iterations):
 if __name__ == '__main__':
 
     number_of_games = 10
-    show_gym(number_of_games)
+    agent_policy = rule_agent.gym_agent
+    show_gym(number_of_games, agent_policy)
 
     # environment = kaggle.make("lux_ai_2021", configuration={"seed": 562124210, "loglevel": 2}, debug=True)
     # steps = environment.run([rule_agent.agent, rule_agent.agent])

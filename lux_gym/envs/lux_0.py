@@ -1,13 +1,12 @@
 from abc import ABC
-# from collections import deque
 
-import numpy as np
 import gym
 # from gym import spaces
 
 from kaggle_environments import make
 
-# from lux_gym.envs.lux.game import Game
+import lux_gym.envs.tools as tools
+from lux_gym.envs.lux.game import Game
 
 
 class LuxEnv(gym.Env, ABC):
@@ -15,36 +14,67 @@ class LuxEnv(gym.Env, ABC):
     def __init__(self, debug=False):
         self._debug = debug
 
-        self._env = make("lux_ai_2021", configuration={"seed": 562124210, "loglevel": 2}, debug=True)
+        self._env = make("lux_ai_2021", configuration={"seed": 562124210, "loglevel": 2}, debug=debug)
         self._positions = (0, 1)
+        # game states allow easier game info scratching
+        self._first_player_game_state = None
+        self._second_player_game_state = None
 
+    @property
     def configuration(self):
         return self._env.configuration
 
-    def reset(self):
+    @property
+    def game_states(self):
+        return self._first_player_game_state, self._second_player_game_state
+
+    def _reset_env(self):
         # update state
         self._env.reset()
-        # get a 'shared' state, which an agent can use
-        shared_state1 = self._env._Environment__get_shared_state(self._positions[0]).observation
-        shared_state2 = self._env._Environment__get_shared_state(self._positions[1]).observation
-        return shared_state1, shared_state2
+        # get an observation from a 'shared' state, which an agent can use
+        observation1 = self._env._Environment__get_shared_state(self._positions[0]).observation
+        self._first_player_game_state = Game()
+        self._first_player_game_state._initialize(observation1["updates"])
+        self._first_player_game_state._update(observation1["updates"][2:])
+        self._first_player_game_state.id = observation1.player
 
-    def step(self, actions):
+        observation2 = self._env._Environment__get_shared_state(self._positions[1]).observation
+        self._second_player_game_state = Game()
+        self._second_player_game_state._initialize(observation2["updates"])
+        self._second_player_game_state._update(observation2["updates"][2:])
+        self._second_player_game_state.id = observation2.player
+
+        return observation1, observation2
+
+    def reset(self):
+        obs1, obs2 = self._reset_env()
+        observations = (obs1, obs2)
+
+        first_player_obs = tools.process(obs1, self._first_player_game_state)
+        second_player_obs = tools.process(obs2, self._second_player_game_state)
+        processed_observations = (first_player_obs, second_player_obs)
+
+        return observations, processed_observations
+
+    def _step_env(self, actions):
         states = self._env.step(actions)
         dones = [False if state.status == 'ACTIVE' else True for state in states]
-        shared_state1 = self._env._Environment__get_shared_state(self._positions[0]).observation
-        shared_state2 = self._env._Environment__get_shared_state(self._positions[1]).observation
-        return dones, (shared_state1, shared_state2)
 
+        observation1 = self._env._Environment__get_shared_state(self._positions[0]).observation
+        self._first_player_game_state._update(observation1["updates"])
 
-def to_binary(d, m=8):
-    """
-    Args:
-        d: is an array of decimal numbers to convert to binary
-        m: is a number of positions in a binary number, 8 is enough for up to 256 decimal, 256 is 2^8
-    Returns:
-        np.ndarray of binary representation of d
+        observation2 = self._env._Environment__get_shared_state(self._positions[1]).observation
+        self._second_player_game_state._update(observation2["updates"])
 
-    """
-    reversed_order = ((d[:, None] & (1 << np.arange(m))) > 0).astype(np.uint8)
-    return np.fliplr(reversed_order)
+        return dones, (observation1, observation2)
+
+    def step(self, actions):
+        dones, (obs1, obs2) = self._step_env(actions)
+        observations = (obs1, obs2)
+
+        # processed_observation is what a model should consume
+        first_player_obs = tools.process(obs1, self._first_player_game_state)
+        second_player_obs = tools.process(obs2, self._second_player_game_state)
+        processed_observations = (first_player_obs, second_player_obs)
+
+        return dones, observations, processed_observations

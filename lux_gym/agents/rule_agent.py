@@ -14,6 +14,7 @@ game_state = None
 
 
 def agent(observation, configuration):
+    """This agent is valid for submission."""
     global game_state
 
     # Do not edit #
@@ -25,17 +26,29 @@ def agent(observation, configuration):
     else:
         game_state._update(observation["updates"])
 
-    actions = []
+    actions = policy(game_state, observation)
+    return actions
 
+
+def gym_agent(observation, configuration, current_game_state):
+    """This agent is valid for a gym environment with several players."""
+
+    actions = policy(current_game_state, observation)
+    return actions
+
+
+def policy(current_game_state, observation):
+
+    actions = []
     # AI Code goes down here! #
-    player = game_state.players[observation.player]
-    opponent = game_state.players[(observation.player + 1) % 2]
-    width, height = game_state.map.width, game_state.map.height
+    player = current_game_state.players[observation.player]
+    opponent = current_game_state.players[(observation.player + 1) % 2]
+    width, height = current_game_state.map.width, current_game_state.map.height
 
     resource_tiles: list[Cell] = []
     for y in range(height):
         for x in range(width):
-            cell = game_state.map.get_cell(x, y)
+            cell = current_game_state.map.get_cell(x, y)
             if cell.has_resource():
                 resource_tiles.append(cell)
 
@@ -76,5 +89,4 @@ def agent(observation, configuration):
 
     # you can add debug annotations using the functions in the annotate object
     # actions.append(annotate.circle(0, 0))
-
     return actions
