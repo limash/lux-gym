@@ -31,7 +31,43 @@ CITY_TILES_BOUND = UNITS_BOUND  # since the units number is limited by the city 
 CITY_TILES_IN_CITY_BOUND = 25
 # from https://www.kaggle.com/c/lux-ai-2021/discussion/265886
 UPKEEP_BOUND = 10 * CITY_TILES_IN_CITY_BOUND + 20 * math.sqrt(CITY_TILES_IN_CITY_BOUND)
+UPKEEP_BOUND_PER_TILE = UPKEEP_BOUND / CITY_TILES_IN_CITY_BOUND
 CITIES_BOUND = 5
+
+
+def to_binary(d, m=8):
+    """
+    Args:
+        d: is an array of decimal numbers to convert to binary
+        m: is a number of positions in a binary number, 8 is enough for up to 256 decimal, 256 is 2^8
+    Returns:
+        np.ndarray of binary representation of d
+    """
+
+    reversed_order = ((d[:, None] & (1 << np.arange(m))) > 0).astype(np.half)
+    return np.fliplr(reversed_order)
+
+
+def get_timing(turn):
+    current_cycle = turn // CYCLE_LENGTH
+    turns_before_current_cycle = current_cycle * CYCLE_LENGTH
+    turns_in_cycle = turn - turns_before_current_cycle
+
+    to_next_day = CYCLE_LENGTH - turns_in_cycle
+    if turns_in_cycle < DAY_LENGTH:
+        is_night = 0
+        to_next_night = DAY_LENGTH - turns_in_cycle
+    else:
+        is_night = 1
+        to_next_night = to_next_day + DAY_LENGTH
+    return current_cycle + 1, to_next_day, to_next_night, is_night
+
+
+def test_get_timing():
+    for turn in range(360):
+        current_cycle, to_next_day, to_next_night, is_night = get_timing(turn)
+        print(f"Current turn: {turn}; current cycle: {current_cycle}; "
+              f"to next day: {to_next_day}; to next night: {to_next_night}; is night: {is_night}")
 
 
 def process(observation, current_game_state):
@@ -40,12 +76,16 @@ def process(observation, current_game_state):
         observation: An observation, which agents get as an input from kaggle environment.
         current_game_state: An object provided by kaggle to simplify game info extraction.
     Returns:
-        processed_observations: An observation, which a model can use as an input.
+        processed_observations: A prepared observation to save to the buffer.
     """
     player = current_game_state.players[observation.player]
     opponent = current_game_state.players[(observation.player + 1) % 2]
     width, height = current_game_state.map.width, current_game_state.map.height
     turn = current_game_state.turn
+
+    player_workers_coords = {}
+    player_carts_coords = {}
+    player_city_tiles_coords = {}
 
     player_research_points = player.research_points
     player_city_tiles_count = player.city_tile_count
@@ -123,10 +163,10 @@ def process(observation, current_game_state):
             A1[10:15, x, y] = to_binary(np.asarray((x,), dtype=np.uint8), m=5)
             A1[15:20, x, y] = to_binary(np.asarray((y,), dtype=np.uint8), m=5)
 
-    # define units, 0 or 1 for bool, 0 to 1 for float;
+    # define units and city tiles, 0 or 1 for bool, 0 to 1 for float;
     # layers:
-    number_of_units_layers = 40
-    A2 = np.zeros((number_of_units_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+    number_of_main_layers = 40
+    A2 = np.zeros((number_of_main_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
     # 0 - a unit
 
     # 1 - is worker
@@ -203,6 +243,8 @@ def process(observation, current_game_state):
                 raise ValueError
             if unit.can_act():
                 A2[4, x, y] = 1
+                if unit.team == player.team:
+                    player_workers_coords[unit.id] = (x, y)  # to save only the operable units
             if unit.can_build(current_game_state.map):
                 A2[5, x, y] = 1
             A2[6, x, y] = unit.cargo.wood / WORKERS_CARGO
@@ -223,6 +265,8 @@ def process(observation, current_game_state):
                 raise ValueError
             if unit.can_act():
                 A2[14, x, y] = 1
+                if unit.team == player.team:
+                    player_carts_coords[unit.id] = (x, y)  # to save only the operable units
             A2[15, x, y] = unit.cargo.wood / CART_CARGO
             A2[16, x, y] = unit.cargo.coal / CART_CARGO
             A2[17, x, y] = unit.cargo.uranium / CART_CARGO
@@ -283,8 +327,10 @@ def process(observation, current_game_state):
                 raise ValueError
             if city_tile.can_act():
                 A2[23, x, y] = 1
+                if city_tile.team == player.team:
+                    player_city_tiles_coords[f"ct_{x}-{y}"] = (x, y)  # to save only the operable units
             A2[24, x, y] = current_city_tiles_count / CITY_TILES_IN_CITY_BOUND
-            A2[25, x, y] = current_light_upkeep / UPKEEP_BOUND
+            A2[25, x, y] = UPKEEP_BOUND_PER_TILE / current_light_upkeep
             A2[26, x, y] = current_fuel / FUEL_BOUND
 
             # common group
@@ -305,40 +351,74 @@ def process(observation, current_game_state):
             A2[38, x, y] = is_night
             A2[39, x, y] = current_cycle / TOTAL_CYCLES
 
-    processed_observation = None
-    return processed_observation
+    A = np.concatenate((A2, A1), axis=0)
+
+    # define headers
+    # layers:
+    # 0 - an operable one
+    # 1 - is worker
+    # 2 - is cart
+    # 3 - is city tile
+    number_of_header_layers = 4
+    workers_headers = {}
+    if player_workers_coords:
+        for k, (x, y) in player_workers_coords.items():
+            foo = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+            bar = np.array([1, 1, 0, 0], dtype=np.half)
+            foo[:, x, y] = bar
+            foo = np.moveaxis(foo, 0, -1)
+            workers_headers[k] = foo
+    carts_headers = {}
+    if player_carts_coords:
+        for k, (x, y) in player_carts_coords.items():
+            foo = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+            bar = np.array([1, 0, 1, 0], dtype=np.half)
+            foo[:, x, y] = bar
+            foo = np.moveaxis(foo, 0, -1)
+            carts_headers[k] = foo
+    city_tiles_headers = {}
+    if player_city_tiles_coords:
+        for k, (x, y) in player_city_tiles_coords.items():
+            foo = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+            bar = np.array([1, 0, 0, 1], dtype=np.half)
+            foo[:, x, y] = bar
+            foo = np.moveaxis(foo, 0, -1)
+            city_tiles_headers[k] = foo
+
+    B = np.moveaxis(A, 0, -1)
+
+    outputs = {"stem": B,
+               "workers_headers": workers_headers,
+               "carts_headers": carts_headers,
+               "city_tiles_headers": city_tiles_headers}
+
+    return outputs
 
 
-def to_binary(d, m=8):
-    """
-    Args:
-        d: is an array of decimal numbers to convert to binary
-        m: is a number of positions in a binary number, 8 is enough for up to 256 decimal, 256 is 2^8
-    Returns:
-        np.ndarray of binary representation of d
-    """
+def get_separate_outputs(observation, current_game_state):
+    inputs = process(observation, current_game_state)
+    stem = inputs["stem"]
+    workers_headers = inputs["workers_headers"]
+    carts_headers = inputs["carts_headers"]
+    city_tiles_headers = inputs["city_tiles_headers"]
 
-    reversed_order = ((d[:, None] & (1 << np.arange(m))) > 0).astype(np.half)
-    return np.fliplr(reversed_order)
+    workers = []
+    if workers_headers:
+        for header in workers_headers:
+            foo = np.concatenate((header, stem), axis=0)
+            workers.append(foo)
+    carts = []
+    if carts_headers:
+        for header in carts_headers:
+            foo = np.concatenate((header, stem), axis=0)
+            carts.append(foo)
+    city_tiles = []
+    if city_tiles_headers:
+        for header in city_tiles_headers:
+            foo = np.concatenate((header, stem), axis=0)
+            city_tiles.append(foo)
 
-
-def get_timing(turn):
-    current_cycle = turn // CYCLE_LENGTH
-    turns_before_current_cycle = current_cycle * CYCLE_LENGTH
-    turns_in_cycle = turn - turns_before_current_cycle
-
-    to_next_day = CYCLE_LENGTH - turns_in_cycle
-    if turns_in_cycle < DAY_LENGTH:
-        is_night = 0
-        to_next_night = DAY_LENGTH - turns_in_cycle
-    else:
-        is_night = 1
-        to_next_night = to_next_day + DAY_LENGTH
-    return current_cycle + 1, to_next_day, to_next_night, is_night
-
-
-def test_get_timing():
-    for turn in range(360):
-        current_cycle, to_next_day, to_next_night, is_night = get_timing(turn)
-        print(f"Current turn: {turn}; current cycle: {current_cycle}; "
-              f"to next day: {to_next_day}; to next night: {to_next_night}; is night: {is_night}")
+    outputs = {"workers": workers,
+               "carts": carts,
+               "city_tiles": city_tiles}
+    return outputs

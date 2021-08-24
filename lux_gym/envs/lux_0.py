@@ -28,7 +28,7 @@ class LuxEnv(gym.Env, ABC):
     def game_states(self):
         return self._first_player_game_state, self._second_player_game_state
 
-    def _reset_env(self):
+    def reset_pure(self):
         # update state
         self._env.reset()
         # get an observation from a 'shared' state, which an agent can use
@@ -47,7 +47,7 @@ class LuxEnv(gym.Env, ABC):
         return observation1, observation2
 
     def reset(self):
-        obs1, obs2 = self._reset_env()
+        obs1, obs2 = self.reset_pure()
         observations = (obs1, obs2)
 
         first_player_obs = tools.process(obs1, self._first_player_game_state)
@@ -56,7 +56,7 @@ class LuxEnv(gym.Env, ABC):
 
         return observations, processed_observations
 
-    def _step_env(self, actions):
+    def step_pure(self, actions):
         states = self._env.step(actions)
         dones = [False if state.status == 'ACTIVE' else True for state in states]
 
@@ -69,7 +69,7 @@ class LuxEnv(gym.Env, ABC):
         return dones, (observation1, observation2)
 
     def step(self, actions):
-        dones, (obs1, obs2) = self._step_env(actions)
+        dones, (obs1, obs2) = self.step_pure(actions)
         observations = (obs1, obs2)
 
         # processed_observation is what a model should consume
