@@ -132,9 +132,10 @@ def process(observation, current_game_state):
     # 10 - 19 for coordinates
     number_of_resources_layers = 20
     A1 = np.zeros((number_of_resources_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
-    for y in range(height):
-        for x in range(width):
-            cell = current_game_state.map.get_cell(x, y)
+    for yy in range(height):
+        for xx in range(width):
+            cell = current_game_state.map.get_cell(xx, yy)
+            x, y = yy, xx
             if cell.has_resource():
                 A1[0, x, y] = 1  # a resource at the point
                 resource = cell.resource
@@ -230,7 +231,7 @@ def process(observation, current_game_state):
             research_points = opponent_research_points
         else:
             raise ValueError
-        x, y = unit.pos.x, unit.pos.y
+        y, x = unit.pos.x, unit.pos.y
         A2[0, x, y] = 1
         if unit.is_worker():
             # worker group
@@ -287,8 +288,8 @@ def process(observation, current_game_state):
         A2[33, x, y] = min(research_points / COAL_RESEARCH_POINTS, 1)
         A2[34, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
 
-        A2[35, x, y] = to_next_day / CYCLE_LENGTH
-        A2[36, x, y] = to_next_night / CYCLE_LENGTH
+        A2[35, x, y] = 1 - to_next_day / CYCLE_LENGTH
+        A2[36, x, y] = 1 - to_next_night / CYCLE_LENGTH
         A2[37, x, y] = turn / MAX_DAYS
         A2[38, x, y] = is_night
         A2[39, x, y] = current_cycle / TOTAL_CYCLES
@@ -317,7 +318,7 @@ def process(observation, current_game_state):
             current_city_tiles_count += 1
         for city_tile in city.citytiles:
             # city tile group
-            x, y = city_tile.pos.x, city_tile.pos.y
+            y, x = city_tile.pos.x, city_tile.pos.y
             A2[20, x, y] = 1
             if city_tile.team == player.team:
                 A2[21, x, y] = 1
@@ -340,13 +341,13 @@ def process(observation, current_game_state):
                 A2[29, x, y] = 1
             A2[30, x, y] = workers_count / WORKERS_BOUND
             A2[31, x, y] = carts_count / CARTS_BOUND
-            A2[32, x, y] = units_count
+            A2[32, x, y] = units_count / UNITS_BOUND
 
             A2[33, x, y] = min(research_points / COAL_RESEARCH_POINTS, 1)
             A2[34, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
 
-            A2[35, x, y] = to_next_day / CYCLE_LENGTH
-            A2[36, x, y] = to_next_night / CYCLE_LENGTH
+            A2[35, x, y] = 1 - to_next_day / CYCLE_LENGTH
+            A2[36, x, y] = 1 - to_next_night / CYCLE_LENGTH
             A2[37, x, y] = turn / MAX_DAYS
             A2[38, x, y] = is_night
             A2[39, x, y] = current_cycle / TOTAL_CYCLES
