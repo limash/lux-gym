@@ -1,11 +1,11 @@
 import math
 import numpy as np
 
-from lux_gym.envs.lux.game import Game
+# from lux_gym.envs.lux.game import Game
 from lux_gym.envs.lux.game_map import Cell
-from lux_gym.envs.lux.game_map import RESOURCE_TYPES, Position
+# from lux_gym.envs.lux.game_map import RESOURCE_TYPES, Position
 from lux_gym.envs.lux.constants import Constants
-from lux_gym.envs.lux.game_constants import GAME_CONSTANTS
+# from lux_gym.envs.lux.game_constants import GAME_CONSTANTS
 from lux_gym.envs.lux import annotate
 
 
@@ -27,8 +27,10 @@ def find_closest_resources(pos, player, resource_tiles):
     closest_resource_tile = None
     for resource_tile in resource_tiles:
         # we skip over resources that we can't mine due to not having researched them
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal(): continue
-        if resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium(): continue
+        if resource_tile.resource.type == Constants.RESOURCE_TYPES.COAL and not player.researched_coal():
+            continue
+        if resource_tile.resource.type == Constants.RESOURCE_TYPES.URANIUM and not player.researched_uranium():
+            continue
         dist = resource_tile.pos.distance_to(pos)
         if dist < closest_dist:
             closest_dist = dist
@@ -60,7 +62,7 @@ def policy(current_game_state, observation):
 
     player = current_game_state.players[observation.player]
     opponent = current_game_state.players[(observation.player + 1) % 2]
-    width, height = current_game_state.map.width, current_game_state.map.height
+    # width, height = current_game_state.map.width, current_game_state.map.height
 
     resource_tiles = find_resources(current_game_state)
 
@@ -131,8 +133,8 @@ def policy(current_game_state, observation):
             steps_to_city = unit.cooldown + base_cd * closest_city_dist
 
             # if we are far from the city in the evening or just full let's go home
-            if (steps_to_city + 3 > steps_until_night
-                or unit.get_cargo_space_left() == 0) and closest_city_tile is not None:
+            if (steps_to_city + 3 > steps_until_night or unit.get_cargo_space_left() == 0) \
+                    and closest_city_tile is not None:
                 actions.append(annotate.line(unit.pos.x, unit.pos.y, closest_city_tile.pos.x, closest_city_tile.pos.y))
                 directions = [unit.pos.direction_to(closest_city_tile.pos)]
             else:

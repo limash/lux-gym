@@ -16,7 +16,7 @@ def policy(current_game_state, observation):
     actions = []
     # AI Code goes down here! #
     player = current_game_state.players[observation.player]
-    opponent = current_game_state.players[(observation.player + 1) % 2]
+    # opponent = current_game_state.players[(observation.player + 1) % 2]
     width, height = current_game_state.map.width, current_game_state.map.height
 
     resource_tiles: list[Cell] = []

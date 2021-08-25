@@ -1,16 +1,17 @@
 from lux_gym.envs.lux.game import Game
-from lux_gym.agents import simple_rb, ilia_rb
+from lux_gym.agents import simple_rb, ilia_rb, nathan_rb
 
 game_state = None
 
 policies = {"simple_rb": simple_rb,
-            "ilia_rb": ilia_rb}
+            "ilia_rb": ilia_rb,
+            "nathan_rb": nathan_rb}
 
 
 def get_agent(policy_name, is_gym=True):
     """
     Args:
-        policy_name: valid names are "simple_rb", "ilia_rb"
+        policy_name: valid names are "simple_rb", "ilia_rb", "nathan_rb"
         is_gym: if False, returns a valid for submission agent,
                 if True, returns a gym agent that needs to know a game state
     Returns:
