@@ -81,6 +81,7 @@ def process(observation, current_game_state):
     player = current_game_state.players[observation.player]
     opponent = current_game_state.players[(observation.player + 1) % 2]
     width, height = current_game_state.map.width, current_game_state.map.height
+    shift = int((MAX_MAP_SIDE - width) / 2)  # to make all feature maps 32x32
     turn = current_game_state.turn
 
     player_workers_coords = {}
@@ -135,7 +136,7 @@ def process(observation, current_game_state):
     for yy in range(height):
         for xx in range(width):
             cell = current_game_state.map.get_cell(xx, yy)
-            x, y = yy, xx
+            x, y = yy + shift, xx + shift
             if cell.has_resource():
                 A1[0, x, y] = 1  # a resource at the point
                 resource = cell.resource
@@ -231,7 +232,7 @@ def process(observation, current_game_state):
             research_points = opponent_research_points
         else:
             raise ValueError
-        y, x = unit.pos.x, unit.pos.y
+        y, x = unit.pos.x + shift, unit.pos.y + shift
         A2[0, x, y] = 1
         if unit.is_worker():
             # worker group
@@ -318,7 +319,7 @@ def process(observation, current_game_state):
             current_city_tiles_count += 1
         for city_tile in city.citytiles:
             # city tile group
-            y, x = city_tile.pos.x, city_tile.pos.y
+            y, x = city_tile.pos.x + shift, city_tile.pos.y + shift
             A2[20, x, y] = 1
             if city_tile.team == player.team:
                 A2[21, x, y] = 1
@@ -403,23 +404,27 @@ def get_separate_outputs(observation, current_game_state):
     carts_headers = inputs["carts_headers"]
     city_tiles_headers = inputs["city_tiles_headers"]
 
-    workers = []
+    workers = {}
     if workers_headers:
-        for header in workers_headers:
-            foo = np.concatenate((header, stem), axis=0)
-            workers.append(foo)
-    carts = []
+        for k, header in workers_headers.items():
+            foo = np.concatenate((header, stem), axis=-1)
+            workers[k] = foo
+    carts = {}
     if carts_headers:
-        for header in carts_headers:
-            foo = np.concatenate((header, stem), axis=0)
-            carts.append(foo)
-    city_tiles = []
+        for k, header in carts_headers.items():
+            foo = np.concatenate((header, stem), axis=-1)
+            carts[k] = foo
+    city_tiles = {}
     if city_tiles_headers:
-        for header in city_tiles_headers:
-            foo = np.concatenate((header, stem), axis=0)
-            city_tiles.append(foo)
+        for k, header in city_tiles_headers.items():
+            foo = np.concatenate((header, stem), axis=-1)
+            city_tiles[k] = foo
 
     outputs = {"workers": workers,
                "carts": carts,
                "city_tiles": city_tiles}
     return outputs
+
+
+if __name__ == "__main__":
+    test_get_timing()

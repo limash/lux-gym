@@ -14,7 +14,7 @@ class LuxEnv(gym.Env, ABC):
     def __init__(self, debug=False):
         self._debug = debug
 
-        self._env = make("lux_ai_2021", configuration={"seed": 562124210, "loglevel": 2}, debug=debug)
+        self._env = make("lux_ai_2021", configuration={"loglevel": 2}, debug=debug)
         self._positions = (0, 1)
         # game states allow easier game info scratching
         self._first_player_game_state = None
@@ -50,8 +50,8 @@ class LuxEnv(gym.Env, ABC):
         obs1, obs2 = self.reset_pure()
         observations = (obs1, obs2)
 
-        first_player_obs = tools.process(obs1, self._first_player_game_state)
-        second_player_obs = tools.process(obs2, self._second_player_game_state)
+        first_player_obs = tools.get_separate_outputs(obs1, self._first_player_game_state)
+        second_player_obs = tools.get_separate_outputs(obs2, self._second_player_game_state)
         processed_observations = (first_player_obs, second_player_obs)
 
         return observations, processed_observations
@@ -73,8 +73,8 @@ class LuxEnv(gym.Env, ABC):
         observations = (obs1, obs2)
 
         # processed_observation is what a model should consume
-        first_player_obs = tools.process(obs1, self._first_player_game_state)
-        second_player_obs = tools.process(obs2, self._second_player_game_state)
+        first_player_obs = tools.get_separate_outputs(obs1, self._first_player_game_state)
+        second_player_obs = tools.get_separate_outputs(obs2, self._second_player_game_state)
         processed_observations = (first_player_obs, second_player_obs)
 
         return dones, observations, processed_observations
