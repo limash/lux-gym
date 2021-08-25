@@ -1,7 +1,6 @@
 import math
-# import sys
 
-from lux_gym.envs.lux.game import Game
+# from lux_gym.envs.lux.game import Game
 from lux_gym.envs.lux.game_map import Cell
 from lux_gym.envs.lux.constants import Constants
 
@@ -10,31 +9,6 @@ from lux_gym.envs.lux.constants import Constants
 # from lux_gym.envs.lux import annotate
 
 DIRECTIONS = Constants.DIRECTIONS
-game_state = None
-
-
-def agent(observation, configuration):
-    """This agent is valid for submission."""
-    global game_state
-
-    # Do not edit #
-    if observation["step"] == 0:
-        game_state = Game()
-        game_state._initialize(observation["updates"])
-        game_state._update(observation["updates"][2:])
-        game_state.id = observation.player
-    else:
-        game_state._update(observation["updates"])
-
-    actions = policy(game_state, observation)
-    return actions
-
-
-def gym_agent(observation, configuration, current_game_state):
-    """This agent is valid for a gym environment with several players."""
-
-    actions = policy(current_game_state, observation)
-    return actions
 
 
 def policy(current_game_state, observation):
