@@ -45,7 +45,8 @@ def policy(current_game_state, observation):
                         closest_dist = dist
                         closest_resource_tile = resource_tile
                 if closest_resource_tile is not None:
-                    actions.append(unit.move(unit.pos.direction_to(closest_resource_tile.pos)))
+                    action = unit.move(unit.pos.direction_to(closest_resource_tile.pos))
+                    actions.append(action)
             else:
                 # if unit is a worker and there is no cargo space left, and we have cities, lets return to them
                 if len(player.cities) > 0:

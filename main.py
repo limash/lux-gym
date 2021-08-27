@@ -10,16 +10,18 @@ def show_gym(number_of_iterations, agent):
     for i in range(number_of_iterations):
         # observations are for rule based agents
         # processed_observations are for conv net based agents
-        observations, processed_observations = env.reset()
+        observations = env.reset()
         game_states = env.game_states
-        actions_1 = agent(observations[0], configuration, game_states[0])
-        actions_2 = agent(observations[1], configuration, game_states[1])
+        actions_1, actions_1_dict, actions_1_probs, proc_obs1 = agent(observations[0], configuration, game_states[0])
+        actions_2, actions_2_dict, actions_2_probs, proc_obs2 = agent(observations[1], configuration, game_states[1])
 
-        for step in range(configuration.episodeSteps):
-            dones, observations, processed_observations = env.step((actions_1, actions_2))
+        for step in range(1, configuration.episodeSteps):
+            dones, observations = env.step((actions_1, actions_2))
             game_states = env.game_states
-            actions_1 = agent(observations[0], configuration, game_states[0])
-            actions_2 = agent(observations[1], configuration, game_states[1])
+            actions_1, actions_1_dict, actions_1_probs, proc_obs1 = agent(observations[0],
+                                                                          configuration, game_states[0])
+            actions_2, actions_2_dict, actions_2_probs, proc_obs2 = agent(observations[1],
+                                                                          configuration, game_states[1])
             if any(dones):
                 break
 
@@ -27,7 +29,7 @@ def show_gym(number_of_iterations, agent):
 if __name__ == '__main__':
 
     number_of_games = 10
-    policy_agent = agents.get_agent("simple_rb")
+    policy_agent = agents.get_processing_agent("ilia_rb")
     show_gym(number_of_games, policy_agent)
 
     print("Test a submission style agent.")

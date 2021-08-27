@@ -58,11 +58,15 @@ def get_random_step():
 
 
 def policy(current_game_state, observation):
+    actions_dict = {"workers": {},
+                    "carts": {},
+                    "city_tiles": {}}
     actions = []
 
     player = current_game_state.players[observation.player]
     opponent = current_game_state.players[(observation.player + 1) % 2]
-    # width, height = current_game_state.map.width, current_game_state.map.height
+    width, height = current_game_state.map.width, current_game_state.map.height
+    shift = int((32 - width) / 2)  # to make all feature maps 32x32
 
     resource_tiles = find_resources(current_game_state)
 
@@ -79,12 +83,14 @@ def policy(current_game_state, observation):
             if city_tile.can_act():
                 if created_worker:
                     # let's do research
-                    action = city_tile.research()
+                    action, report = city_tile.research_report(shift)
                     actions.append(action)
+                    actions_dict["city_tiles"][report[0]] = report[1]
                 else:
                     # let's create one more unit in the last created city tile if we can
-                    action = city_tile.build_worker()
+                    action, report = city_tile.build_worker_report(shift)
                     actions.append(action)
+                    actions_dict["city_tiles"][report[0]] = report[1]
                     created_worker = True
 
     # we want to build new tiles only if we have a lot of fuel in all cities
@@ -121,8 +127,9 @@ def policy(current_game_state, observation):
             if unit.is_worker() and unit.can_build(current_game_state.map) and (
                     (closest_city_dist == 1 and can_build) or (closest_city_dist is None)):
                 # build a new cityTile
-                action = unit.build_city()
+                action, report = unit.build_city_report()
                 actions.append(action)
+                actions_dict["workers"][report[0]] = report[1]
                 can_build = False
                 continue
 
@@ -153,14 +160,31 @@ def policy(current_game_state, observation):
                 next_step_coordinates = (next_step_position.x, next_step_position.y)
                 # make only moves without collision
                 if next_step_coordinates not in taken_tiles or next_step_coordinates in city_tiles:
-                    action = unit.move(next_step_direction)
+                    action, report = unit.move_report(next_step_direction)
                     actions.append(action)
+                    if unit.is_worker():
+                        actions_dict["workers"][report[0]] = report[1]
+                    elif unit.is_cart():
+                        actions_dict["carts"][report[0]] = report[1]
+                    else:
+                        raise ValueError
                     taken_tiles.add(next_step_coordinates)
                     moved = True
                     break
 
             if not moved:
+                direction = unit.pos.direction_to(unit.pos)
+                action, report = unit.move_report(direction)
+                actions.append(action)
+                if unit.is_worker():
+                    actions_dict["workers"][report[0]] = report[1]
+                elif unit.is_cart():
+                    actions_dict["carts"][report[0]] = report[1]
+                else:
+                    raise ValueError
                 # if we are not moving the tile is occupied
                 taken_tiles.add((unit.pos.x, unit.pos.y))
 
-    return actions
+    actions_probs_dict = actions_dict
+
+    return actions, actions_dict, actions_probs_dict, None

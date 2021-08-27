@@ -3,6 +3,7 @@ from typing import Dict
 from .constants import Constants
 from .game_map import Position
 from .game_constants import GAME_CONSTANTS
+from .action_vectors import action_vector
 
 UNIT_TYPES = Constants.UNIT_TYPES
 
@@ -14,8 +15,10 @@ class Player:
         self.units: list[Unit] = []
         self.cities: Dict[str, City] = {}
         self.city_tile_count = 0
+
     def researched_coal(self) -> bool:
         return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["COAL"]
+
     def researched_uranium(self) -> bool:
         return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["URANIUM"]
 
@@ -27,10 +30,12 @@ class City:
         self.fuel = fuel
         self.citytiles: list[CityTile] = []
         self.light_upkeep = light_upkeep
+
     def _add_city_tile(self, x, y, cooldown):
         ct = CityTile(self.team, self.cityid, x, y, cooldown)
         self.citytiles.append(ct)
         return ct
+
     def get_light_upkeep(self):
         return self.light_upkeep
 
@@ -41,26 +46,45 @@ class CityTile:
         self.team = teamid
         self.pos = Position(x, y)
         self.cooldown = cooldown
+
     def can_act(self) -> bool:
         """
         Whether or not this unit can research or build
         """
         return self.cooldown < 1
+
     def research(self) -> str:
         """
         returns command to ask this tile to research this turn
         """
         return "r {} {}".format(self.pos.x, self.pos.y)
+
+    def research_report(self, shift):
+        action = self.research()
+        report = f"ct_{self.pos.y + shift}-{self.pos.x + shift}", action_vector["ct_research"]
+        return action, report
+
     def build_worker(self) -> str:
         """
         returns command to ask this tile to build a worker this turn
         """
         return "bw {} {}".format(self.pos.x, self.pos.y)
+
+    def build_worker_report(self, shift):
+        action = self.build_worker()
+        report = f"ct_{self.pos.y + shift}-{self.pos.x + shift}", action_vector["ct_build_worker"]
+        return action, report
+
     def build_cart(self) -> str:
         """
         returns command to ask this tile to build a cart this turn
         """
         return "bc {} {}".format(self.pos.x, self.pos.y)
+
+    def build_cart_report(self, shift):
+        action = self.build_cart()
+        report = f"ct_{self.pos.y + shift}-{self.pos.x + shift}", action_vector["ct_build_cart"]
+        return action, report
 
 
 class Cargo:
@@ -84,6 +108,7 @@ class Unit:
         self.cargo.wood = wood
         self.cargo.coal = coal
         self.cargo.uranium = uranium
+
     def is_worker(self) -> bool:
         return self.type == UNIT_TYPES.WORKER
 
@@ -99,13 +124,14 @@ class Unit:
             return GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["WORKER"] - spaceused
         else:
             return GAME_CONSTANTS["PARAMETERS"]["RESOURCE_CAPACITY"]["CART"] - spaceused
-    
+
     def can_build(self, game_map) -> bool:
         """
         whether or not the unit can build where it is right now
         """
         cell = game_map.get_cell_by_pos(self.pos)
-        if not cell.has_resource() and self.can_act() and (self.cargo.wood + self.cargo.coal + self.cargo.uranium) >= GAME_CONSTANTS["PARAMETERS"]["CITY_BUILD_COST"]:
+        if not cell.has_resource() and self.can_act() and (self.cargo.wood + self.cargo.coal + self.cargo.uranium) >= \
+                GAME_CONSTANTS["PARAMETERS"]["CITY_BUILD_COST"]:
             return True
         return False
 
@@ -121,11 +147,34 @@ class Unit:
         """
         return "m {} {}".format(self.id, dir)
 
+    def move_report(self, dir):
+        action = self.move(dir)
+        if self.is_worker():
+            unit_type = "w"
+        elif self.is_cart():
+            unit_type = "c"
+        else:
+            raise ValueError
+        report = f"{self.id}", action_vector[f"{unit_type}_m{dir}"]
+        return action, report
+
     def transfer(self, dest_id, resourceType, amount) -> str:
         """
         return the command to transfer a resource from a source unit to a destination unit as specified by their ids
         """
         return "t {} {} {} {}".format(self.id, dest_id, resourceType, amount)
+
+    def transfer_report(self, dest_unit, resourceType, amount):
+        action = self.transfer(dest_unit.id, resourceType, amount)
+        if self.is_worker():
+            unit_type = "w"
+        elif self.is_cart():
+            unit_type = "c"
+        else:
+            raise ValueError
+        direction = [self.pos.direction_to(dest_unit.pos)]
+        report = f"{self.id}", action_vector[f"{unit_type}_t{direction}{resourceType}"]
+        return action, report
 
     def build_city(self) -> str:
         """
@@ -133,8 +182,18 @@ class Unit:
         """
         return "bcity {}".format(self.id)
 
+    def build_city_report(self):
+        action = self.build_city()
+        report = f"{self.id}", action_vector["w_build"]
+        return action, report
+
     def pillage(self) -> str:
         """
         return the command to pillage whatever is underneath the worker
         """
         return "p {}".format(self.id)
+
+    def pillage_report(self):
+        action = self.pillage()
+        report = f"{self.id}", action_vector["w_pillage"]
+        return action, report

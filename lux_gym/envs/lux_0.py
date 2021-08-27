@@ -14,7 +14,7 @@ class LuxEnv(gym.Env, ABC):
     def __init__(self, debug=False):
         self._debug = debug
 
-        self._env = make("lux_ai_2021", configuration={"loglevel": 2}, debug=debug)
+        self._env = make("lux_ai_2021", configuration={"seed": 102316787, "loglevel": 2}, debug=debug)
         self._positions = (0, 1)
         # game states allow easier game info scratching
         self._first_player_game_state = None
@@ -28,7 +28,7 @@ class LuxEnv(gym.Env, ABC):
     def game_states(self):
         return self._first_player_game_state, self._second_player_game_state
 
-    def reset_pure(self):
+    def reset(self):
         # update state
         self._env.reset()
         # get an observation from a 'shared' state, which an agent can use
@@ -46,8 +46,8 @@ class LuxEnv(gym.Env, ABC):
 
         return observation1, observation2
 
-    def reset(self):
-        obs1, obs2 = self.reset_pure()
+    def reset_process(self):
+        obs1, obs2 = self.reset()
         observations = (obs1, obs2)
 
         first_player_obs = tools.get_separate_outputs(obs1, self._first_player_game_state)
@@ -56,7 +56,7 @@ class LuxEnv(gym.Env, ABC):
 
         return observations, processed_observations
 
-    def step_pure(self, actions):
+    def step(self, actions):
         states = self._env.step(actions)
         dones = [False if state.status == 'ACTIVE' else True for state in states]
 
@@ -68,8 +68,8 @@ class LuxEnv(gym.Env, ABC):
 
         return dones, (observation1, observation2)
 
-    def step(self, actions):
-        dones, (obs1, obs2) = self.step_pure(actions)
+    def step_process(self, actions):
+        dones, (obs1, obs2) = self.step(actions)
         observations = (obs1, obs2)
 
         # processed_observation is what a model should consume
