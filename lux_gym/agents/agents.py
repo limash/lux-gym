@@ -67,6 +67,6 @@ def get_processing_agent(policy_name):
             if len(act_values) != len(obs_values):
                 raise ValueError
 
-        return actions, actions_dict, actions_probs_dict, processed_observations
+        return actions, actions_dict, actions_probs_dict, processed_observations, observation.reward
 
     return gym_agent

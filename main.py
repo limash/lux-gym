@@ -12,22 +12,23 @@ def show_gym(number_of_iterations, agent):
         # processed_observations are for conv net based agents
         observations = env.reset()
         game_states = env.game_states
-        actions_1, actions_1_dict, actions_1_probs, proc_obs1 = agent(observations[0], configuration, game_states[0])
-        actions_2, actions_2_dict, actions_2_probs, proc_obs2 = agent(observations[1], configuration, game_states[1])
+        actions_1, actions_1_dict, actions_1_probs, proc_obs1, reward1 = agent(observations[0],
+                                                                               configuration, game_states[0])
+        actions_2, actions_2_dict, actions_2_probs, proc_obs2, reward2 = agent(observations[1],
+                                                                               configuration, game_states[1])
 
         for step in range(1, configuration.episodeSteps):
             dones, observations = env.step((actions_1, actions_2))
             game_states = env.game_states
-            actions_1, actions_1_dict, actions_1_probs, proc_obs1 = agent(observations[0],
-                                                                          configuration, game_states[0])
-            actions_2, actions_2_dict, actions_2_probs, proc_obs2 = agent(observations[1],
-                                                                          configuration, game_states[1])
+            actions_1, actions_1_dict, actions_1_probs, proc_obs1, reward1 = agent(observations[0],
+                                                                                   configuration, game_states[0])
+            actions_2, actions_2_dict, actions_2_probs, proc_obs2, reward2 = agent(observations[1],
+                                                                                   configuration, game_states[1])
             if any(dones):
                 break
 
 
 if __name__ == '__main__':
-
     number_of_games = 10
     policy_agent = agents.get_processing_agent("ilia_rb")
     show_gym(number_of_games, policy_agent)
