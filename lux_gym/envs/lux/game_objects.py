@@ -61,7 +61,7 @@ class CityTile:
 
     def research_report(self, shift):
         action = self.research()
-        report = f"ct_{self.pos.y + shift}-{self.pos.x + shift}", action_vector["ct_research"]
+        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector["ct_research"]
         return action, report
 
     def build_worker(self) -> str:
@@ -72,7 +72,7 @@ class CityTile:
 
     def build_worker_report(self, shift):
         action = self.build_worker()
-        report = f"ct_{self.pos.y + shift}-{self.pos.x + shift}", action_vector["ct_build_worker"]
+        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector["ct_build_worker"]
         return action, report
 
     def build_cart(self) -> str:
@@ -83,7 +83,7 @@ class CityTile:
 
     def build_cart_report(self, shift):
         action = self.build_cart()
-        report = f"ct_{self.pos.y + shift}-{self.pos.x + shift}", action_vector["ct_build_cart"]
+        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector["ct_build_cart"]
         return action, report
 
 
@@ -172,7 +172,7 @@ class Unit:
             unit_type = "c"
         else:
             raise ValueError
-        direction = [self.pos.direction_to(dest_unit.pos)]
+        direction = self.pos.direction_to(dest_unit.pos)
         report = f"{self.id}", action_vector[f"{unit_type}_t{direction}{resourceType}"]
         return action, report
 

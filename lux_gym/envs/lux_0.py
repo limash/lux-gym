@@ -11,10 +11,13 @@ from lux_gym.envs.lux.game import Game
 
 class LuxEnv(gym.Env, ABC):
 
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, seed=None):
         self._debug = debug
 
-        self._env = make("lux_ai_2021", configuration={"loglevel": 2}, debug=debug)
+        if seed is not None:
+            self._env = make("lux_ai_2021", configuration={"seed": seed, "loglevel": 2}, debug=debug)
+        else:
+            self._env = make("lux_ai_2021", configuration={"loglevel": 2}, debug=debug)
         self._positions = (0, 1)
         # game states allow easier game info scratching
         self._first_player_game_state = None

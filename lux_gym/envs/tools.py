@@ -330,7 +330,7 @@ def process(observation, current_game_state):
             if city_tile.can_act():
                 A2[23, x, y] = 1
                 if city_tile.team == player.team:
-                    player_city_tiles_coords[f"ct_{x}-{y}"] = (x, y)  # to save only the operable units
+                    player_city_tiles_coords[f"ct_{x}_{y}"] = (x, y)  # to save only the operable units
             A2[24, x, y] = current_city_tiles_count / CITY_TILES_IN_CITY_BOUND
             A2[25, x, y] = UPKEEP_BOUND_PER_TILE / current_light_upkeep
             A2[26, x, y] = current_fuel / FUEL_BOUND
