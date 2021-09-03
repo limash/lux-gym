@@ -385,8 +385,8 @@ def get_separate_outputs(observation, current_game_state):
     if units_headers:
         for k, header in units_headers.items():
             head, (x, y), X, is_worker = header
+            mod_stem = np.copy(stem)
             if X is not None:
-                mod_stem = np.copy(stem)
                 mod_stem[x, y, 4:13] = X
             ready_array = np.concatenate((head, mod_stem), axis=-1)
             if is_worker:
