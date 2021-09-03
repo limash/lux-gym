@@ -84,8 +84,7 @@ def process(observation, current_game_state):
     shift = int((MAX_MAP_SIDE - width) / 2)  # to make all feature maps 32x32
     turn = current_game_state.turn
 
-    player_workers_coords = {}
-    player_carts_coords = {}
+    player_units_coords = {}
     player_city_tiles_coords = {}
 
     player_research_points = player.research_points
@@ -165,136 +164,48 @@ def process(observation, current_game_state):
             A1[10:15, x, y] = to_binary(np.asarray((x,), dtype=np.uint8), m=5)
             A1[15:20, x, y] = to_binary(np.asarray((y,), dtype=np.uint8), m=5)
 
-    # define units and city tiles, 0 or 1 for bool, 0 to 1 for float;
+    # define city tiles, 0 or 1 for bool, 0 to around 1 for float;
     # layers:
-    number_of_main_layers = 40
+    number_of_main_layers = 33
     A2 = np.zeros((number_of_main_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+
     # 0 - a unit
+    # 1 - is player
+    # 2 - is opponent
+    # 3 - at the city tile
+    # 4 - is worker
+    # 5 - is cart
+    # 6 - can act
+    # 7 - can build
+    # 8 - cargo wood
+    # 9 - cargo coal
+    # 10 - cargo uranium
+    # 11 - cargo space left
+    # 12 - fuel equivalent
 
-    # 1 - is worker
-    # 2 - is player
-    # 3 - is opponent
-    # 4 - can act
-    # 5 - can build
-    # 6 - cargo wood
-    # 7 - cargo coal
-    # 8 - cargo uranium
-    # 9 - cargo space left
-    # 10 - fuel equivalent
+    # 13 - is city tile
+    # 14 - is player
+    # 15 - is opponent
+    # 16 - can act
+    # 17 - amount of city tiles in the city, which the city tile belongs to
+    # 18 - current city upkeep
+    # 19 - fuel amount
 
-    # 11 - is cart
-    # 12 - is player
-    # 13 - is opponent
-    # 14 - can act
-    # 15 - cargo wood
-    # 16 - cargo coal
-    # 17 - cargo uranium
-    # 18 - cargo space left
-    # 19 - fuel equivalent
+    # 20 - amount of all friendly city tiles
+    # 21 - amount of cities
+    # 22 - units build limit reached (workers + carts == city tiles)
+    # 23 - number of workers
+    # 24 - number of carts
+    # 25 - number of friendly units
+    # 26 - research progress for coal
+    # 27 - research progress for uranium
+    # 28 - progress (from 0 to 1) until next day
+    # 29 - progress until next night
+    # 30 - progress until finish
+    # 31 - is night
+    # 32 - current cycle
 
-    # 20 - is city tile
-    # 21 - is player
-    # 22 - is opponent
-    # 23 - can act
-    # 24 - amount of city tiles in the city, which the city tile belongs to
-    # 25 - current city upkeep
-    # 26 - fuel amount
-
-    # 27 - amount of all friendly city tiles
-    # 28 - amount of cities
-    # 29 - units build limit reached (workers + carts == city tiles)
-    # 30 - number of workers
-    # 31 - number of carts
-    # 32 - number of friendly units
-    # 33 - research progress for coal
-    # 34 - research progress for uranium
-    # 35 - progress (from 0 to 1) until next day
-    # 36 - progress until next night
-    # 37 - progress until finish
-    # 38 - is night
-    # 39 - current cycle
-
-    for unit in player.units + opponent.units:
-        # unit group
-        if unit.team == player.team:
-            city_tiles_count = player_city_tiles_count
-            cities_count = player_cities_count
-            units_count = player_units_count
-            workers_count = player_workers_count
-            carts_count = player_carts_count
-            research_points = player_research_points
-        elif unit.team == opponent.team:
-            city_tiles_count = opponent_city_tiles_count
-            cities_count = opponent_cities_count
-            units_count = opponent_units_count
-            workers_count = opponent_workers_count
-            carts_count = opponent_carts_count
-            research_points = opponent_research_points
-        else:
-            raise ValueError
-        y, x = unit.pos.x + shift, unit.pos.y + shift
-        A2[0, x, y] = 1
-        if unit.is_worker():
-            # worker group
-            A2[1, x, y] = 1
-            if unit.team == player.team:
-                A2[2, x, y] = 1
-            elif unit.team == opponent.team:
-                A2[3, x, y] = 1
-            else:
-                raise ValueError
-            if unit.can_act():
-                A2[4, x, y] = 1
-                if unit.team == player.team:
-                    player_workers_coords[unit.id] = (x, y)  # to save only the operable units
-            if unit.can_build(current_game_state.map):
-                A2[5, x, y] = 1
-            A2[6, x, y] = unit.cargo.wood / WORKERS_CARGO
-            A2[7, x, y] = unit.cargo.coal / WORKERS_CARGO
-            A2[8, x, y] = unit.cargo.uranium / WORKERS_CARGO
-            A2[9, x, y] = unit.get_cargo_space_left() / WORKERS_CARGO
-            A2[10, x, y] = (unit.cargo.wood * WOOD_FUEL_VALUE +
-                            unit.cargo.coal * COAL_FUEL_VALUE +
-                            unit.cargo.uranium * URAN_FUEL_VALUE) / FUEL_BOUND
-        elif unit.is_cart():
-            # cart group
-            A2[11, x, y] = 1
-            if unit.team == player.team:
-                A2[12, x, y] = 1
-            elif unit.team == opponent.team:
-                A2[13, x, y] = 1
-            else:
-                raise ValueError
-            if unit.can_act():
-                A2[14, x, y] = 1
-                if unit.team == player.team:
-                    player_carts_coords[unit.id] = (x, y)  # to save only the operable units
-            A2[15, x, y] = unit.cargo.wood / CART_CARGO
-            A2[16, x, y] = unit.cargo.coal / CART_CARGO
-            A2[17, x, y] = unit.cargo.uranium / CART_CARGO
-            A2[18, x, y] = unit.get_cargo_space_left() / CART_CARGO
-            A2[19, x, y] = (unit.cargo.wood * WOOD_FUEL_VALUE +
-                            unit.cargo.coal * COAL_FUEL_VALUE +
-                            unit.cargo.uranium * URAN_FUEL_VALUE) / FUEL_BOUND
-
-        # common group
-        A2[27, x, y] = city_tiles_count / CITY_TILES_BOUND
-        A2[28, x, y] = cities_count / CITIES_BOUND
-        if units_count == city_tiles_count:
-            A2[29, x, y] = 1
-        A2[30, x, y] = workers_count / WORKERS_BOUND
-        A2[31, x, y] = carts_count / CARTS_BOUND
-        A2[32, x, y] = units_count / UNITS_BOUND
-
-        A2[33, x, y] = min(research_points / COAL_RESEARCH_POINTS, 1)
-        A2[34, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
-
-        A2[35, x, y] = 1 - to_next_day / CYCLE_LENGTH
-        A2[36, x, y] = 1 - to_next_night / CYCLE_LENGTH
-        A2[37, x, y] = turn / MAX_DAYS
-        A2[38, x, y] = is_night
-        A2[39, x, y] = current_cycle / TOTAL_CYCLES
-
+    # start with city tiles to know their positions to fill units cells
     for k, city in list(player.cities.items()) + list(opponent.cities.items()):
         if city.team == player.team:
             city_tiles_count = player_city_tiles_count
@@ -320,38 +231,112 @@ def process(observation, current_game_state):
         for city_tile in city.citytiles:
             # city tile group
             y, x = city_tile.pos.x + shift, city_tile.pos.y + shift
-            A2[20, x, y] = 1
+            A2[13, x, y] = 1
             if city_tile.team == player.team:
-                A2[21, x, y] = 1
+                A2[14, x, y] = 1
             elif city_tile.team == opponent.team:
-                A2[22, x, y] = 1
+                A2[15, x, y] = 1
             else:
                 raise ValueError
             if city_tile.can_act():
-                A2[23, x, y] = 1
+                A2[16, x, y] = 1
                 if city_tile.team == player.team:
                     player_city_tiles_coords[f"ct_{x}_{y}"] = (x, y)  # to save only the operable units
-            A2[24, x, y] = current_city_tiles_count / CITY_TILES_IN_CITY_BOUND
-            A2[25, x, y] = UPKEEP_BOUND_PER_TILE / current_light_upkeep
-            A2[26, x, y] = current_fuel / FUEL_BOUND
+            A2[17, x, y] = current_city_tiles_count / CITY_TILES_IN_CITY_BOUND
+            A2[18, x, y] = UPKEEP_BOUND_PER_TILE / current_light_upkeep
+            A2[19, x, y] = current_fuel / FUEL_BOUND
 
             # common group
-            A2[27, x, y] = city_tiles_count / CITY_TILES_BOUND
-            A2[28, x, y] = cities_count / CITIES_BOUND
+            A2[20, x, y] = city_tiles_count / CITY_TILES_BOUND
+            A2[21, x, y] = cities_count / CITIES_BOUND
             if units_count == city_tiles_count:
-                A2[29, x, y] = 1
-            A2[30, x, y] = workers_count / WORKERS_BOUND
-            A2[31, x, y] = carts_count / CARTS_BOUND
-            A2[32, x, y] = units_count / UNITS_BOUND
+                A2[22, x, y] = 1
+            A2[23, x, y] = workers_count / WORKERS_BOUND
+            A2[24, x, y] = carts_count / CARTS_BOUND
+            A2[25, x, y] = units_count / UNITS_BOUND
+            A2[26, x, y] = min(research_points / COAL_RESEARCH_POINTS, 1)
+            A2[27, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
+            A2[28, x, y] = 1 - to_next_day / CYCLE_LENGTH
+            A2[29, x, y] = 1 - to_next_night / CYCLE_LENGTH
+            A2[30, x, y] = turn / MAX_DAYS
+            A2[31, x, y] = is_night
+            A2[32, x, y] = current_cycle / TOTAL_CYCLES
 
-            A2[33, x, y] = min(research_points / COAL_RESEARCH_POINTS, 1)
-            A2[34, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
+    for unit in player.units + opponent.units:
+        # unit group
+        if unit.team == player.team:
+            city_tiles_count = player_city_tiles_count
+            cities_count = player_cities_count
+            units_count = player_units_count
+            workers_count = player_workers_count
+            carts_count = player_carts_count
+            research_points = player_research_points
+        elif unit.team == opponent.team:
+            city_tiles_count = opponent_city_tiles_count
+            cities_count = opponent_cities_count
+            units_count = opponent_units_count
+            workers_count = opponent_workers_count
+            carts_count = opponent_carts_count
+            research_points = opponent_research_points
+        else:
+            raise ValueError
+        y, x = unit.pos.x + shift, unit.pos.y + shift
+        A2[0, x, y] = 1
+        if unit.team == player.team:
+            A2[1, x, y] = 1
+        elif unit.team == opponent.team:
+            A2[2, x, y] = 1
+        else:
+            raise ValueError
+        is_unit_at_home = 1 if A2[13, x, y] == 1 else 0
+        A2[3, x, y] = is_unit_at_home
 
-            A2[35, x, y] = 1 - to_next_day / CYCLE_LENGTH
-            A2[36, x, y] = 1 - to_next_night / CYCLE_LENGTH
-            A2[37, x, y] = turn / MAX_DAYS
-            A2[38, x, y] = is_night
-            A2[39, x, y] = current_cycle / TOTAL_CYCLES
+        X = np.zeros(9, dtype=np.half)
+        if unit.is_worker():
+            X[0] = 1
+        elif unit.is_cart():
+            X[1] = 1
+        else:
+            raise ValueError
+        if unit.can_act():
+            X[2] = 1
+        if unit.can_build(current_game_state.map):
+            X[3] = 1
+        X[4] = unit.cargo.wood / WORKERS_CARGO
+        X[5] = unit.cargo.coal / WORKERS_CARGO
+        X[6] = unit.cargo.uranium / WORKERS_CARGO
+        X[7] = unit.get_cargo_space_left() / WORKERS_CARGO
+        X[8] = (unit.cargo.wood * WOOD_FUEL_VALUE +
+                unit.cargo.coal * COAL_FUEL_VALUE +
+                unit.cargo.uranium * URAN_FUEL_VALUE) / FUEL_BOUND
+
+        # there are many unit can share the same position at home
+        # so save unique unit parameters in X array and store it in dictionary if unit is at home
+        # if unit is not at home so it has a unique position, put it inside A2 array
+        if is_unit_at_home:
+            if unit.can_act() and unit.team == player.team:
+                player_units_coords[unit.id] = ((x, y), (X, unit.is_worker()))
+        else:
+            if unit.can_act() and unit.team == player.team:
+                player_units_coords[unit.id] = ((x, y), (None, unit.is_worker()))
+
+            A2[4:13, x, y] = X
+
+            # common group
+            A2[20, x, y] = city_tiles_count / CITY_TILES_BOUND
+            A2[21, x, y] = cities_count / CITIES_BOUND
+            if units_count == city_tiles_count:
+                A2[22, x, y] = 1
+            A2[23, x, y] = workers_count / WORKERS_BOUND
+            A2[24, x, y] = carts_count / CARTS_BOUND
+            A2[25, x, y] = units_count / UNITS_BOUND
+            A2[26, x, y] = min(research_points / COAL_RESEARCH_POINTS, 1)
+            A2[27, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
+            A2[28, x, y] = 1 - to_next_day / CYCLE_LENGTH
+            A2[29, x, y] = 1 - to_next_night / CYCLE_LENGTH
+            A2[30, x, y] = turn / MAX_DAYS
+            A2[31, x, y] = is_night
+            A2[32, x, y] = current_cycle / TOTAL_CYCLES
 
     A = np.concatenate((A2, A1), axis=0)
 
@@ -362,36 +347,28 @@ def process(observation, current_game_state):
     # 2 - is cart
     # 3 - is city tile
     number_of_header_layers = 4
-    workers_headers = {}
-    if player_workers_coords:
-        for k, (x, y) in player_workers_coords.items():
-            foo = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
-            bar = np.array([1, 1, 0, 0], dtype=np.half)
-            foo[:, x, y] = bar
-            foo = np.moveaxis(foo, 0, -1)
-            workers_headers[k] = foo
-    carts_headers = {}
-    if player_carts_coords:
-        for k, (x, y) in player_carts_coords.items():
-            foo = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
-            bar = np.array([1, 0, 1, 0], dtype=np.half)
-            foo[:, x, y] = bar
-            foo = np.moveaxis(foo, 0, -1)
-            carts_headers[k] = foo
+    units_headers = {}
+    if player_units_coords:
+        for k, ((x, y), (X, is_worker)) in player_units_coords.items():
+            head = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+            worker = np.array([1, 1, 0, 0], dtype=np.half)
+            cart = np.array([1, 0, 1, 0], dtype=np.half)
+            head[:, x, y] = worker if is_worker else cart
+            head = np.moveaxis(head, 0, -1)
+            units_headers[k] = (head, (x, y), X, is_worker)
+
     city_tiles_headers = {}
     if player_city_tiles_coords:
         for k, (x, y) in player_city_tiles_coords.items():
-            foo = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
-            bar = np.array([1, 0, 0, 1], dtype=np.half)
-            foo[:, x, y] = bar
-            foo = np.moveaxis(foo, 0, -1)
-            city_tiles_headers[k] = foo
+            head = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+            head[:, x, y] = np.array([1, 0, 0, 1], dtype=np.half)
+            head = np.moveaxis(head, 0, -1)
+            city_tiles_headers[k] = head
 
     B = np.moveaxis(A, 0, -1)
 
     outputs = {"stem": B,
-               "workers_headers": workers_headers,
-               "carts_headers": carts_headers,
+               "units_headers": units_headers,
                "city_tiles_headers": city_tiles_headers}
 
     return outputs
@@ -400,25 +377,28 @@ def process(observation, current_game_state):
 def get_separate_outputs(observation, current_game_state):
     inputs = process(observation, current_game_state)
     stem = inputs["stem"]
-    workers_headers = inputs["workers_headers"]
-    carts_headers = inputs["carts_headers"]
+    units_headers = inputs["units_headers"]
     city_tiles_headers = inputs["city_tiles_headers"]
 
     workers = {}
-    if workers_headers:
-        for k, header in workers_headers.items():
-            foo = np.concatenate((header, stem), axis=-1)
-            workers[k] = foo
     carts = {}
-    if carts_headers:
-        for k, header in carts_headers.items():
-            foo = np.concatenate((header, stem), axis=-1)
-            carts[k] = foo
+    if units_headers:
+        for k, header in units_headers.items():
+            head, (x, y), X, is_worker = header
+            if X is not None:
+                mod_stem = np.copy(stem)
+                mod_stem[x, y, 4:13] = X
+            ready_array = np.concatenate((head, mod_stem), axis=-1)
+            if is_worker:
+                workers[k] = ready_array
+            else:
+                carts[k] = ready_array
+
     city_tiles = {}
     if city_tiles_headers:
         for k, header in city_tiles_headers.items():
-            foo = np.concatenate((header, stem), axis=-1)
-            city_tiles[k] = foo
+            ready_array = np.concatenate((header, stem), axis=-1)
+            city_tiles[k] = ready_array
 
     outputs = {"workers": workers,
                "carts": carts,
