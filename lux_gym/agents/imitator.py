@@ -10,7 +10,11 @@ import lux_gym.envs.tools as env_tools
 def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     actions_shape = len(action_vector)
-    model = models.get_actor_critic(feature_maps_shape, actions_shape)
+    model = models.get_actor_critic()
+    dummy_input = (tf.ones(feature_maps_shape, dtype=tf.float32),
+                   tf.convert_to_tensor(worker_action_mask, dtype=tf.float32))
+    dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
+    model(dummy_input)
     with open('data/data.pickle', 'rb') as file:
         init_data = pickle.load(file)
     model.set_weights(init_data['weights'])
@@ -52,12 +56,13 @@ def get_policy():
             action, value = predict(obs, worker_action_mask_exp)
             action_masked = action * worker_action_mask_exp
             workers_actions_probs_dict[key] = action_masked[0].numpy()
-            max_arg = tf.argmax(action_masked, axis=-1)
+            max_arg = tf.argmax(action_masked, axis=-1)[0]
+            # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(action_masked), 1))
             action_one_hot = tf.one_hot(max_arg, actions_shape)
             workers_actions_dict[key] = action_one_hot[0].numpy()
 
             # deserialization
-            meaning = meaning_vector[max_arg[0].numpy()]
+            meaning = meaning_vector[max_arg.numpy()]
             if meaning[0] == "m":
                 action_string = f"{meaning[0]} {key} {meaning[1]}"
             elif meaning[0] == "p":
@@ -82,12 +87,13 @@ def get_policy():
             action, value = predict(obs, citytile_action_mask_exp)
             action_masked = action * citytile_action_mask_exp
             citytiles_actions_probs_dict[key] = action_masked[0].numpy()
-            max_arg = tf.argmax(action_masked, axis=-1)
+            max_arg = tf.argmax(action_masked, axis=-1)[0]
+            # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(action_masked), 1))
             action_one_hot = tf.one_hot(max_arg, actions_shape)
             citytiles_actions_dict[key] = action_one_hot[0].numpy()
 
             # deserialization
-            meaning = meaning_vector[max_arg[0].numpy()]
+            meaning = meaning_vector[max_arg.numpy()]
             if meaning[0] == "bw":
                 action_string = f"{meaning[0]} {x} {y}"
             elif meaning[0] == "bc":

@@ -4,10 +4,13 @@ import lux_gym.envs.tools as tools
 
 game_state = None
 
-policies = {"simple_rb": simple_rb.policy,
-            "ilia_rb": ilia_rb.policy,
-            "nathan_rb": nathan_rb.policy,
-            "imitator": imitator.get_policy()}
+
+def get_policy(name):
+    policies = {"simple_rb": simple_rb.policy,
+                "ilia_rb": ilia_rb.policy,
+                "nathan_rb": nathan_rb.policy,
+                "imitator": imitator.get_policy()}
+    return policies[name]
 
 
 def get_agent(policy_name, is_gym=True):
@@ -22,7 +25,7 @@ def get_agent(policy_name, is_gym=True):
         agent or gym_agent
     """
 
-    policy = policies[policy_name]
+    policy = get_policy(policy_name)
 
     def agent(observation, configuration):
         """This agent is valid for submission."""
@@ -55,7 +58,7 @@ def get_agent(policy_name, is_gym=True):
 def get_processing_agent(policy_name):
     """The agents, which return processed data with actions. For trajectories collection. """
 
-    policy = policies[policy_name]
+    policy = get_policy(policy_name)
 
     def gym_agent(observation, configuration, current_game_state):
         """This agent is valid for a gym environment with several players."""
