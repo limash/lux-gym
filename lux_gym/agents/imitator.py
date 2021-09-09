@@ -15,9 +15,12 @@ def get_policy():
                    tf.convert_to_tensor(worker_action_mask, dtype=tf.float32))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
-    with open('data/data.pickle', 'rb') as file:
-        init_data = pickle.load(file)
-    model.set_weights(init_data['weights'])
+    try:
+        with open('data/data.pickle', 'rb') as file:
+            init_data = pickle.load(file)
+        model.set_weights(init_data['weights'])
+    except FileNotFoundError:
+        pass
 
     def find_unit(player, unit_id, direction):
         dest_id = 'unknown'
