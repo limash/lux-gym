@@ -10,7 +10,7 @@ import lux_gym.envs.tools as env_tools
 def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     actions_shape = len(action_vector)
-    model = models.actor_critic_1()
+    model = models.actor_critic_custom()
     dummy_input = (tf.ones(feature_maps_shape, dtype=tf.float32),
                    tf.convert_to_tensor(worker_action_mask, dtype=tf.float32))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
@@ -57,10 +57,21 @@ def get_policy():
         workers = observations["workers"]
         for key, obs in workers.items():
             action, value = predict(obs, worker_action_mask_exp)
-            action_masked = action * worker_action_mask_exp
-            workers_actions_probs_dict[key] = action_masked[0].numpy()
+
+            # action_v = action.numpy()
+            # action_masked = action * worker_action_mask_exp
+            # worker_action = action[0, 4:23]
+            # worker_action_v = worker_action.numpy()
+            # probs_logs = tf.math.log(worker_action)
+            # adjusted_logs = probs_logs * 2
+            # adjusted_probs = tf.nn.softmax(adjusted_logs)
+            # adjusted_probs_v = adjusted_probs.numpy()
+            action_probs = tf.nn.softmax(tf.math.log(action) * 2)
+            # action_probs_v = action_probs.numpy()
+
+            workers_actions_probs_dict[key] = action[0].numpy()
             # max_arg = tf.argmax(action_masked, axis=-1)[0]
-            max_arg = tf.squeeze(tf.random.categorical(tf.math.log(action_masked), 1))
+            max_arg = tf.squeeze(tf.random.categorical(tf.math.log(action_probs), 1))
             action_one_hot = tf.one_hot(max_arg, actions_shape)
             workers_actions_dict[key] = action_one_hot[0].numpy()
 
