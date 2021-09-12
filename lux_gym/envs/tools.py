@@ -34,6 +34,8 @@ UPKEEP_BOUND = 10 * CITY_TILES_IN_CITY_BOUND + 20 * math.sqrt(CITY_TILES_IN_CITY
 UPKEEP_BOUND_PER_TILE = UPKEEP_BOUND / CITY_TILES_IN_CITY_BOUND
 CITIES_BOUND = 5
 
+units_actions_dict = {}
+
 
 def to_binary(d, m=8):
     """
@@ -78,6 +80,9 @@ def process(observation, current_game_state):
     Returns:
         processed_observations: A prepared observation to save to the buffer.
     """
+
+    global units_actions_dict
+
     player = current_game_state.players[observation.player]
     opponent = current_game_state.players[(observation.player + 1) % 2]
     width, height = current_game_state.map.width, current_game_state.map.height
@@ -346,14 +351,32 @@ def process(observation, current_game_state):
     # 1 - is worker
     # 2 - is cart
     # 3 - is city tile
-    number_of_header_layers = 4
+    # 4 - prev pos for units
+    # 5 - prev prev pos for units
+    number_of_header_layers = 6
     units_headers = {}
     if player_units_coords:
         for k, ((x, y), (X, is_worker)) in player_units_coords.items():
             head = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
             worker = np.array([1, 1, 0, 0], dtype=np.half)
             cart = np.array([1, 0, 1, 0], dtype=np.half)
-            head[:, x, y] = worker if is_worker else cart
+            head[:4, x, y] = worker if is_worker else cart
+
+            if k in units_actions_dict.keys():
+                units_actions_dict[k].append((x, y))
+                unit_prev_pos = units_actions_dict[k][-2]
+                if len(units_actions_dict[k]) > 2:
+                    unit_prev_prev_pos = units_actions_dict[k][-3]
+                else:
+                    unit_prev_prev_pos = units_actions_dict[k][-2]
+            else:
+                units_actions_dict[k] = []
+                units_actions_dict[k].append((x, y))
+                unit_prev_pos = (x, y)
+                unit_prev_prev_pos = (x, y)
+            head[4, unit_prev_pos[0], unit_prev_pos[1]] = 1
+            head[5, unit_prev_prev_pos[0], unit_prev_prev_pos[1]] = 1
+
             head = np.moveaxis(head, 0, -1)
             units_headers[k] = (head, (x, y), X, is_worker)
 
@@ -361,7 +384,7 @@ def process(observation, current_game_state):
     if player_city_tiles_coords:
         for k, (x, y) in player_city_tiles_coords.items():
             head = np.zeros((number_of_header_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
-            head[:, x, y] = np.array([1, 0, 0, 1], dtype=np.half)
+            head[:4, x, y] = np.array([1, 0, 0, 1], dtype=np.half)
             head = np.moveaxis(head, 0, -1)
             city_tiles_headers[k] = head
 

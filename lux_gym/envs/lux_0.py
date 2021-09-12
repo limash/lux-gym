@@ -14,6 +14,7 @@ class LuxEnv(gym.Env, ABC):
     def __init__(self, debug=False, seed=None):
         self._debug = debug
 
+        tools.units_actions_dict.clear()
         if seed is not None:
             self._env = make("lux_ai_2021", configuration={"seed": seed, "loglevel": 2}, debug=debug)
         else:
@@ -33,6 +34,7 @@ class LuxEnv(gym.Env, ABC):
 
     def reset(self):
         # update state
+        tools.units_actions_dict.clear()
         self._env.reset()
         # get an observation from a 'shared' state, which an agent can use
         observation1 = self._env._Environment__get_shared_state(self._positions[0]).observation
