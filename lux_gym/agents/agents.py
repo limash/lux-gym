@@ -1,5 +1,5 @@
 from lux_gym.envs.lux.game import Game
-from lux_gym.agents import simple_rb, ilia_rb, nathan_rb, imitator
+from lux_gym.agents import simple_rb, ilia_rb, nathan_rb, imitator, half_imitator
 import lux_gym.envs.tools as tools
 
 game_state = None
@@ -9,7 +9,8 @@ def get_policy(name):
     policies = {"simple_rb": simple_rb.policy,
                 "ilia_rb": ilia_rb.policy,
                 "nathan_rb": nathan_rb.policy,
-                "imitator": imitator.get_policy()}
+                "imitator": imitator.get_policy(),
+                "half_imitator": half_imitator.get_policy()}
     return policies[name]
 
 
