@@ -109,7 +109,8 @@ def get_policy():
             elif meaning[0] == "p":
                 action_string = f"{meaning[0]} {key}"
             elif meaning[0] == "t":
-                raise NotImplementedError
+                action_string = f"m {key} c"
+                # raise NotImplementedError
                 # direction = meaning[1]
                 # dest_id = find_unit(player, key, direction)
                 # action_string = f"{meaning[0]} {key} {dest_id} {meaning[2]} {100}"
