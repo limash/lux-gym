@@ -11,8 +11,8 @@ import lux_gym.envs.tools as env_tools
 def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     actions_shape = len(action_vector)
-    units_model = models.actor_critic_custom()
-    cts_model = models.actor_critic_custom()
+    units_model = models.actor_critic_base()
+    cts_model = models.actor_critic_base()
     dummy_input = (tf.ones(feature_maps_shape, dtype=tf.float32),
                    tf.convert_to_tensor(worker_action_mask, dtype=tf.float32))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
@@ -61,7 +61,7 @@ def get_policy():
             cts_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_obs)
             cts_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_masks)
             acts, vals = predict_cts(cts_obs, cts_masks)
-            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             for i, key in enumerate(proc_observations["city_tiles"].keys()):
                 _, x, y = key.split("_")
                 x, y = int(y) - shift, int(x) - shift
@@ -91,7 +91,7 @@ def get_policy():
             workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             workers_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_masks)
             acts, vals = predict_units(workers_obs, workers_masks)
-            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             for i, key in enumerate(proc_observations["workers"].keys()):
                 workers_actions_probs_dict[key] = acts[i, :].numpy()
                 max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
