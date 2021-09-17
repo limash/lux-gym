@@ -135,7 +135,7 @@ def process(observation, current_game_state):
     # 8 - if a resource is available for the player, 1 when ready
     # 9 - a road lvl
     # 10 - 19 for coordinates
-    number_of_resources_layers = 10
+    number_of_resources_layers = 20
     A1 = np.zeros((number_of_resources_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
     for yy in range(height):
         for xx in range(width):
@@ -166,8 +166,8 @@ def process(observation, current_game_state):
                     raise ValueError
                 A1[7, x, y] = fuel / FUEL_BOUND
             A1[9, x, y] = cell.road / MAX_ROAD
-            # A1[10:15, x, y] = to_binary(np.asarray((x,), dtype=np.uint8), m=5)
-            # A1[15:20, x, y] = to_binary(np.asarray((y,), dtype=np.uint8), m=5)
+            A1[10:15, x, y] = to_binary(np.asarray((x,), dtype=np.uint8), m=5)
+            A1[15:20, x, y] = to_binary(np.asarray((y,), dtype=np.uint8), m=5)
 
     # define city tiles, 0 or 1 for bool, 0 to around 1 for float;
     # layers:
