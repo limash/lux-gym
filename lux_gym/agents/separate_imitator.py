@@ -61,7 +61,7 @@ def get_policy():
             cts_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_obs)
             cts_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_masks)
             acts, vals = predict_cts(cts_obs, cts_masks)
-            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             for i, key in enumerate(proc_observations["city_tiles"].keys()):
                 _, x, y = key.split("_")
                 x, y = int(y) - shift, int(x) - shift
@@ -91,7 +91,7 @@ def get_policy():
             workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             workers_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_masks)
             acts, vals = predict_units(workers_obs, workers_masks)
-            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             for i, key in enumerate(proc_observations["workers"].keys()):
                 workers_actions_probs_dict[key] = acts[i, :].numpy()
                 max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
