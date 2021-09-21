@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from lux_ai import models, tools
 from lux_gym.envs.lux.action_vectors import action_vector, meaning_vector
-from lux_gym.envs.lux.action_vectors import worker_action_mask, citytile_action_mask
+# from lux_gym.envs.lux.action_vectors import worker_action_mask, citytile_action_mask
 import lux_gym.envs.tools as env_tools
 
 

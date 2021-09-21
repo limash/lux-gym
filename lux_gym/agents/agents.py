@@ -1,5 +1,5 @@
 from lux_gym.envs.lux.game import Game
-from lux_gym.agents import simple_rb, ilia_rb, nathan_rb, imitator, half_imitator, separate_imitator
+from lux_gym.agents import simple_rb, ilia_rb, nathan_rb, separate_imitator
 import lux_gym.envs.tools as tools
 
 game_state = None
