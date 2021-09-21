@@ -1,3 +1,4 @@
+import time
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -49,19 +50,27 @@ def get_policy():
                         "carts": {},
                         "city_tiles": citytiles_actions_dict}
 
+        print(f"Step: {observation['step']}; Player: {observation['player']}")
+        t1 = time.perf_counter()
         proc_observations = env_tools.get_separate_outputs(observation, current_game_state)
+        t2 = time.perf_counter()
+        print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
         width, height = current_game_state.map.width, current_game_state.map.height
         shift = int((32 - width) / 2)
 
         # city tiles
         if proc_observations["city_tiles"]:
+            t1 = time.perf_counter()
             cts_obs = np.stack(list(proc_observations["city_tiles"].values()), axis=0)
             cts_masks = np.tile(citytile_action_mask, (cts_obs.shape[0], 1))
             cts_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_obs)
             cts_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_masks)
             acts, vals = predict_cts(cts_obs, cts_masks)
             acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            t2 = time.perf_counter()
+            print(f"2. City Tiles prediction: {t2 - t1:0.4f} seconds")
+            t1 = time.perf_counter()
             for i, key in enumerate(proc_observations["city_tiles"].keys()):
                 _, x, y = key.split("_")
                 x, y = int(y) - shift, int(x) - shift
@@ -83,15 +92,21 @@ def get_policy():
                     raise ValueError
                 if action_string is not None:
                     actions.append(action_string)
+            t2 = time.perf_counter()
+            print(f"2. City tiles deserialization: {t2 - t1:0.4f} seconds")
 
         # workers
         if proc_observations["workers"]:
+            t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             workers_masks = np.tile(worker_action_mask, (workers_obs.shape[0], 1))
             workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             workers_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_masks)
             acts, vals = predict_units(workers_obs, workers_masks)
             acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            t2 = time.perf_counter()
+            print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
+            t1 = time.perf_counter()
             for i, key in enumerate(proc_observations["workers"].keys()):
                 workers_actions_probs_dict[key] = acts[i, :].numpy()
                 max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
@@ -110,6 +125,8 @@ def get_policy():
                 else:
                     raise ValueError
                 actions.append(action_string)
+            t2 = time.perf_counter()
+            print(f"2. Workers deserialization: {t2 - t1:0.4f} seconds")
 
         return actions, actions_dict, actions_probs_dict, proc_observations
 
