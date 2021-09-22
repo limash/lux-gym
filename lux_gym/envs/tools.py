@@ -171,7 +171,7 @@ def process(observation, current_game_state):
 
     # define city tiles, 0 or 1 for bool, 0 to around 1 for float;
     # layers:
-    number_of_main_layers = 31
+    number_of_main_layers = 33
     A2 = np.zeros((number_of_main_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
 
     # 0 - a unit
@@ -263,9 +263,9 @@ def process(observation, current_game_state):
             A2[27, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
             A2[28, x, y] = 1 - to_next_day / CYCLE_LENGTH
             A2[29, x, y] = 1 - to_next_night / CYCLE_LENGTH
-            # A2[30, x, y] = turn / MAX_DAYS
-            A2[30, x, y] = is_night
-            # A2[32, x, y] = current_cycle / TOTAL_CYCLES
+            A2[30, x, y] = turn / MAX_DAYS
+            A2[31, x, y] = is_night
+            A2[32, x, y] = current_cycle / TOTAL_CYCLES
 
     for unit in player.units + opponent.units:
         # unit group
@@ -339,9 +339,9 @@ def process(observation, current_game_state):
             A2[27, x, y] = min(research_points / URAN_RESEARCH_POINTS, 1)
             A2[28, x, y] = 1 - to_next_day / CYCLE_LENGTH
             A2[29, x, y] = 1 - to_next_night / CYCLE_LENGTH
-            # A2[30, x, y] = turn / MAX_DAYS
-            A2[30, x, y] = is_night
-            # A2[32, x, y] = current_cycle / TOTAL_CYCLES
+            A2[30, x, y] = turn / MAX_DAYS
+            A2[31, x, y] = is_night
+            A2[32, x, y] = current_cycle / TOTAL_CYCLES
 
     A = np.concatenate((A2, A1), axis=0)
 
