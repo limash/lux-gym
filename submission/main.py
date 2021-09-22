@@ -1,18 +1,13 @@
+import os
+import time
 import pickle
-import bz2
-import base64
-
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 
 import tools
-from action_vectors import action_vector, meaning_vector
-from action_vectors import worker_action_mask, citytile_action_mask
+from action_vectors import meaning_vector, actions_number
 from game import Game
-
-from params_city_tiles import PARAM_CT
-from params_units import PARAM_UNITS
 
 
 class ResidualUnit(keras.layers.Layer):
@@ -35,7 +30,7 @@ class ResidualUnit(keras.layers.Layer):
 
 
 class ResidualModel(keras.Model):
-    def __init__(self, **kwargs):
+    def __init__(self, actions_n, **kwargs):
         super().__init__(**kwargs)
 
         filters = 128
@@ -53,18 +48,20 @@ class ResidualModel(keras.Model):
         self._depthwise = keras.layers.DepthwiseConv2D(32)
         self._flatten = keras.layers.Flatten()
 
-        self._city_tiles_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
-        self._city_tiles_probs1 = keras.layers.Dense(4, activation="softmax", kernel_initializer=initializer_random)
+        # self._city_tiles_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+        # self._city_tiles_probs1 = keras.layers.Dense(4, activation="softmax",
+        #                                              kernel_initializer=initializer_random)
         self._workers_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
-        self._workers_probs1 = keras.layers.Dense(19, activation="softmax", kernel_initializer=initializer_random)
-        self._carts_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
-        self._carts_probs1 = keras.layers.Dense(17, activation="softmax", kernel_initializer=initializer_random)
+        self._workers_probs1 = keras.layers.Dense(actions_n, activation="softmax",
+                                                  kernel_initializer=initializer_random)
+        # self._carts_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+        # self._carts_probs1 = keras.layers.Dense(17, activation="softmax", kernel_initializer=initializer_random)
 
         self._baseline = keras.layers.Dense(1, kernel_initializer=initializer_random,
                                             activation=keras.activations.tanh)
 
     def call(self, inputs, training=False, mask=None):
-        features, actions_mask = inputs
+        features = inputs
 
         x = features
 
@@ -87,14 +84,15 @@ class ResidualModel(keras.Model):
         z2 = self._flatten(z2)
         z = tf.concat([z1, z2], axis=1)
 
-        t = self._city_tiles_probs0(z)
-        t = self._city_tiles_probs1(t)
+        # t = self._city_tiles_probs0(z)
+        # t = self._city_tiles_probs1(t)
         w = self._workers_probs0(z)
         w = self._workers_probs1(w)
-        c = self._carts_probs0(z)
-        c = self._carts_probs1(c)
-        probs = tf.concat([t, w, c], axis=1)
-        probs = probs * actions_mask
+        # c = self._carts_probs0(z)
+        # c = self._carts_probs1(c)
+        # probs = tf.concat([t, w, c], axis=1)
+        # probs = probs * actions_mask
+        probs = w
 
         baseline = self._baseline(tf.concat([y, z], axis=1))
 
@@ -105,31 +103,19 @@ class ResidualModel(keras.Model):
 
 
 def get_policy():
-    feature_maps_shape = (32, 32, 57)
-    actions_shape = len(action_vector)
-    units_model = ResidualModel()
-    cts_model = ResidualModel()
-    dummy_input = (tf.ones(feature_maps_shape, dtype=tf.float32),
-                   tf.convert_to_tensor(worker_action_mask, dtype=tf.float32))
+    feature_maps_shape = (32, 32, 59)
+    model = ResidualModel(actions_number)
+    dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
-    cts_model(dummy_input)
-    units_model(dummy_input)
-    # with open('city_tiles.pickle', 'rb') as file:
-    #     cts_data = pickle.load(file)
-    cts_data = pickle.loads(bz2.decompress(base64.b64decode(PARAM_CT)))
-    # with open('units.pickle', 'rb') as file:
-    #     units_data = pickle.load(file)
-    units_data = pickle.loads(bz2.decompress(base64.b64decode(PARAM_UNITS)))
-    cts_model.set_weights(cts_data['weights'])
-    units_model.set_weights(units_data['weights'])
+    model(dummy_input)
+    path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
+    with open(f'{path}/data.pickle', 'rb') as file:
+        init_data = pickle.load(file)
+    model.set_weights(init_data['weights'])
 
     @tf.function(experimental_relax_shapes=True)
-    def predict_cts(obs, mask):
-        return cts_model((obs, mask))
-
-    @tf.function(experimental_relax_shapes=True)
-    def predict_units(obs, mask):
-        return units_model((obs, mask))
+    def predict(obs):
+        return model(obs)
 
     def policy(current_game_state, observation):
         actions = []
@@ -144,53 +130,38 @@ def get_policy():
                         "carts": {},
                         "city_tiles": citytiles_actions_dict}
 
+        print(f"Step: {observation['step']}; Player: {observation['player']}")
+        t1 = time.perf_counter()
         proc_observations = tools.get_separate_outputs(observation, current_game_state)
+        t2 = time.perf_counter()
+        print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
-        width, height = current_game_state.map.width, current_game_state.map.height
-        shift = int((32 - width) / 2)
+        player = current_game_state.players[observation.player]
 
-        # city tiles
-        if proc_observations["city_tiles"]:
-            cts_obs = np.stack(list(proc_observations["city_tiles"].values()), axis=0)
-            cts_masks = np.tile(citytile_action_mask, (cts_obs.shape[0], 1))
-            cts_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_obs)
-            cts_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), cts_masks)
-            acts, vals = predict_cts(cts_obs, cts_masks)
-            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            for i, key in enumerate(proc_observations["city_tiles"].keys()):
-                _, x, y = key.split("_")
-                x, y = int(y) - shift, int(x) - shift
-                citytiles_actions_probs_dict[key] = acts[i, :].numpy()
-                max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1, :]), 1))
-                action_one_hot = tf.one_hot(max_arg, actions_shape)
-                citytiles_actions_dict[key] = action_one_hot.numpy()
-                # deserialization
-                meaning = meaning_vector[max_arg.numpy()]
-                if meaning[0] == "bw":
-                    action_string = f"{meaning[0]} {x} {y}"
-                elif meaning[0] == "bc":
-                    action_string = f"bw {x} {y}"  # do not build cart
-                elif meaning[0] == "r":
-                    action_string = f"{meaning[0]} {x} {y}"
-                elif meaning[0] == "idle":
-                    action_string = None
-                else:
-                    raise ValueError
-                if action_string is not None:
-                    actions.append(action_string)
+        unit_count = len(player.units)
+        for city in player.cities.values():
+            for city_tile in city.citytiles:
+                if city_tile.can_act():
+                    if unit_count < player.city_tile_count:
+                        actions.append(city_tile.build_worker())
+                        unit_count += 1
+                    elif not player.researched_uranium():
+                        actions.append(city_tile.research())
+                        player.research_points += 1
 
         # workers
         if proc_observations["workers"]:
+            t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
-            workers_masks = np.tile(worker_action_mask, (workers_obs.shape[0], 1))
             workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
-            workers_masks = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_masks)
-            acts, vals = predict_units(workers_obs, workers_masks)
-            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            acts, vals = predict(workers_obs)
+            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            t2 = time.perf_counter()
+            print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
                 workers_actions_probs_dict[key] = acts[i, :].numpy()
                 max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
-                action_one_hot = tf.one_hot(max_arg, actions_shape)
+                action_one_hot = tf.one_hot(max_arg, actions_number)
                 workers_actions_dict[key] = action_one_hot.numpy()
                 # deserialization
                 meaning = meaning_vector[max_arg.numpy()]
@@ -207,7 +178,6 @@ def get_policy():
                 actions.append(action_string)
 
         return actions, actions_dict, actions_probs_dict, proc_observations
-
     return policy
 
 

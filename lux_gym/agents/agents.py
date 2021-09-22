@@ -1,5 +1,5 @@
 from lux_gym.envs.lux.game import Game
-from lux_gym.agents import simple_rb, ilia_rb, nathan_rb, separate_imitator
+from lux_gym.agents import simple_rb, ilia_rb, nathan_rb, half_imitator
 import lux_gym.envs.tools as tools
 
 game_state = None
@@ -10,8 +10,8 @@ def get_policy(name):
                 "ilia_rb": ilia_rb.policy,
                 "nathan_rb": nathan_rb.policy,
                 # "imitator": imitator.get_policy(),
-                # "half_imitator": half_imitator.get_policy(),
-                "separate_imitator": separate_imitator.get_policy(),
+                "half_imitator": half_imitator.get_policy(),
+                # "separate_imitator": separate_imitator.get_policy(),
                 }
     return policies[name]
 
@@ -70,9 +70,9 @@ def get_processing_agent(policy_name):
         if processed_observations is None:
             processed_observations = tools.get_separate_outputs(observation, current_game_state)
 
-        for act_values, obs_values in zip(actions_dict.values(), processed_observations.values()):
-            if len(act_values) != len(obs_values):
-                raise ValueError
+        # for act_values, obs_values in zip(actions_dict.values(), processed_observations.values()):
+        #     if len(act_values) != len(obs_values):
+        #         raise ValueError
 
         return actions, actions_dict, actions_probs_dict, processed_observations, observation.reward
 

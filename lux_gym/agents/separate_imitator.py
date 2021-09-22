@@ -4,18 +4,16 @@ import numpy as np
 import tensorflow as tf
 
 from lux_ai import models, tools
-from lux_gym.envs.lux.action_vectors import action_vector, meaning_vector
-# from lux_gym.envs.lux.action_vectors import worker_action_mask, citytile_action_mask
+from lux_gym.envs.lux.action_vectors import meaning_vector, actions_number
 import lux_gym.envs.tools as env_tools
 
 
 def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
-    actions_shape = len(action_vector)
+    actions_shape = actions_number
     units_model = models.actor_critic_base()
     cts_model = models.actor_critic_base()
-    dummy_input = (tf.ones(feature_maps_shape, dtype=tf.float32),
-                   tf.convert_to_tensor(worker_action_mask, dtype=tf.float32))
+    dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     cts_model(dummy_input)
     units_model(dummy_input)

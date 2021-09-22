@@ -3,7 +3,7 @@ from typing import Dict
 from constants import Constants
 from game_map import Position
 from game_constants import GAME_CONSTANTS
-from action_vectors import action_vector
+from action_vectors import action_vector_full
 
 UNIT_TYPES = Constants.UNIT_TYPES
 
@@ -61,7 +61,7 @@ class CityTile:
 
     def research_report(self, shift):
         action = self.research()
-        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector["ct_research"]
+        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector_full["ct_research"]
         return action, report
 
     def build_worker(self) -> str:
@@ -72,7 +72,7 @@ class CityTile:
 
     def build_worker_report(self, shift):
         action = self.build_worker()
-        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector["ct_build_worker"]
+        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector_full["ct_build_worker"]
         return action, report
 
     def build_cart(self) -> str:
@@ -83,7 +83,7 @@ class CityTile:
 
     def build_cart_report(self, shift):
         action = self.build_cart()
-        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector["ct_build_cart"]
+        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector_full["ct_build_cart"]
         return action, report
 
 
@@ -155,7 +155,7 @@ class Unit:
             unit_type = "c"
         else:
             raise ValueError
-        report = f"{self.id}", action_vector[f"{unit_type}_m{dir}"]
+        report = f"{self.id}", action_vector_full[f"{unit_type}_m{dir}"]
         return action, report
 
     def transfer(self, dest_id, resourceType, amount) -> str:
@@ -173,7 +173,7 @@ class Unit:
         else:
             raise ValueError
         direction = self.pos.direction_to(dest_unit.pos)
-        report = f"{self.id}", action_vector[f"{unit_type}_t{direction}{resourceType}"]
+        report = f"{self.id}", action_vector_full[f"{unit_type}_t{direction}{resourceType}"]
         return action, report
 
     def build_city(self) -> str:
@@ -184,7 +184,7 @@ class Unit:
 
     def build_city_report(self):
         action = self.build_city()
-        report = f"{self.id}", action_vector["w_build"]
+        report = f"{self.id}", action_vector_full["w_build"]
         return action, report
 
     def pillage(self) -> str:
@@ -195,5 +195,5 @@ class Unit:
 
     def pillage_report(self):
         action = self.pillage()
-        report = f"{self.id}", action_vector["w_pillage"]
+        report = f"{self.id}", action_vector_full["w_pillage"]
         return action, report
