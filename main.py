@@ -35,7 +35,7 @@ if __name__ == '__main__':
 
     print("Test a submission style agent.")
 
-    policy_agent = agents.get_agent("simple_rb", is_gym=False)
+    policy_agent = agents.get_agent("half_imitator", is_gym=False)
     environment = kaggle.make("lux_ai_2021", configuration={"seed": 562124210, "loglevel": 2}, debug=True)
     steps = environment.run([policy_agent, policy_agent])
 
