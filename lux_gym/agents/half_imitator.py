@@ -6,6 +6,11 @@ import tensorflow as tf
 from lux_ai import models, tools
 from lux_gym.envs.lux.action_vectors import meaning_vector, actions_number
 import lux_gym.envs.tools as env_tools
+from lux_gym.envs.lux.game import Missions
+
+from lux_gym.agents.actions import make_city_actions
+
+missions = Missions()
 
 
 def get_policy():
@@ -26,6 +31,8 @@ def get_policy():
         return model(obs)
 
     def policy(current_game_state, observation):
+        global missions
+
         actions = []
         workers_actions_probs_dict = {}
         workers_actions_dict = {}
@@ -44,18 +51,21 @@ def get_policy():
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
-        player = current_game_state.players[observation.player]
+        # player = current_game_state.players[observation.player]
+        # unit_count = len(player.units)
+        # for city in player.cities.values():
+        #     for city_tile in city.citytiles:
+        #         if city_tile.can_act():
+        #             if unit_count < player.city_tile_count:
+        #                 actions.append(city_tile.build_worker())
+        #                 unit_count += 1
+        #             elif not player.researched_uranium():
+        #                 actions.append(city_tile.research())
+        #                 player.research_points += 1
 
-        unit_count = len(player.units)
-        for city in player.cities.values():
-            for city_tile in city.citytiles:
-                if city_tile.can_act():
-                    if unit_count < player.city_tile_count:
-                        actions.append(city_tile.build_worker())
-                        unit_count += 1
-                    elif not player.researched_uranium():
-                        actions.append(city_tile.research())
-                        player.research_points += 1
+        current_game_state.calculate_features(missions)
+        actions_by_cities = make_city_actions(current_game_state, missions)
+        actions += actions_by_cities
 
         # workers
         if proc_observations["workers"]:
@@ -63,7 +73,7 @@ def get_policy():
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             acts, vals = predict(workers_obs)
-            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):

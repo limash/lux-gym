@@ -13,7 +13,7 @@ from lux_gym.envs.lux.game_position import Position
 from lux_gym.envs.lux.constants import Constants
 from lux_gym.envs.lux.game_constants import GAME_CONSTANTS
 
-from heuristics import *
+from lux_gym.agents.heuristics import *
 
 DIRECTIONS = Constants.DIRECTIONS
 

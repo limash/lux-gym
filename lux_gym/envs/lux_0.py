@@ -40,14 +40,18 @@ class LuxEnv(gym.Env, ABC):
         observation1 = self._env._Environment__get_shared_state(self._positions[0]).observation
         self._first_player_game_state = Game()
         self._first_player_game_state._initialize(observation1["updates"])
+        self._first_player_game_state.player_id = observation1.player
         self._first_player_game_state._update(observation1["updates"][2:])
-        self._first_player_game_state.id = observation1.player
+        # self._first_player_game_state.id = observation1.player
+        self._first_player_game_state.fix_iteration_order()
 
         observation2 = self._env._Environment__get_shared_state(self._positions[1]).observation
         self._second_player_game_state = Game()
         self._second_player_game_state._initialize(observation2["updates"])
+        self._second_player_game_state.player_id = observation2.player
         self._second_player_game_state._update(observation2["updates"][2:])
-        self._second_player_game_state.id = observation2.player
+        # self._second_player_game_state.id = observation2.player
+        self._second_player_game_state.fix_iteration_order()
 
         return observation1, observation2
 

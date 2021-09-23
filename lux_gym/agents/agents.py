@@ -34,8 +34,10 @@ def get_agent(policy_name, is_gym=True):
         if observation["step"] == 0:
             game_state = Game()
             game_state._initialize(observation["updates"])
+            game_state.player_id = observation.player
             game_state._update(observation["updates"][2:])
-            game_state.id = observation.player
+            # game_state.id = observation.player
+            game_state.fix_iteration_order()
         else:
             game_state._update(observation["updates"])
 
