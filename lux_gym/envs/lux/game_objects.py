@@ -1,12 +1,13 @@
-from typing import Dict
+from lux_gym.envs.lux import annotate
+import random
+from typing import Dict, List
 
 from .constants import Constants
-from .game_map import Position
+from .game_position import Position
 from .game_constants import GAME_CONSTANTS
-from .action_vectors import action_vector_full
 
 UNIT_TYPES = Constants.UNIT_TYPES
-
+DIRECTIONS = Constants.DIRECTIONS
 
 class Player:
     def __init__(self, team):
@@ -16,11 +17,18 @@ class Player:
         self.cities: Dict[str, City] = {}
         self.city_tile_count = 0
 
+        self.units_by_id: Dict[str, Unit] = {}
+
     def researched_coal(self) -> bool:
         return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["COAL"]
 
     def researched_uranium(self) -> bool:
-        return self.research_points >= GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["URANIUM"]
+        return self.research_points > GAME_CONSTANTS["PARAMETERS"]["RESEARCH_REQUIREMENTS"]["URANIUM"]
+
+    def make_index_units_by_id(self):
+        self.units_by_id: Dict[str, Unit] = {}
+        for unit in self.units:
+            self.units_by_id[unit.id] = unit
 
 
 class City:
@@ -30,6 +38,7 @@ class City:
         self.fuel = fuel
         self.citytiles: list[CityTile] = []
         self.light_upkeep = light_upkeep
+        self.fuel_needed_for_remaining_nights = -1  # [TODO]
 
     def _add_city_tile(self, x, y, cooldown):
         ct = CityTile(self.team, self.cityid, x, y, cooldown)
@@ -59,32 +68,17 @@ class CityTile:
         """
         return "r {} {}".format(self.pos.x, self.pos.y)
 
-    def research_report(self, shift):
-        action = self.research()
-        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector_full["ct_research"]
-        return action, report
-
     def build_worker(self) -> str:
         """
         returns command to ask this tile to build a worker this turn
         """
         return "bw {} {}".format(self.pos.x, self.pos.y)
 
-    def build_worker_report(self, shift):
-        action = self.build_worker()
-        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector_full["ct_build_worker"]
-        return action, report
-
     def build_cart(self) -> str:
         """
         returns command to ask this tile to build a cart this turn
         """
         return "bc {} {}".format(self.pos.x, self.pos.y)
-
-    def build_cart_report(self, shift):
-        action = self.build_cart()
-        report = f"ct_{self.pos.y + shift}_{self.pos.x + shift}", action_vector_full["ct_build_cart"]
-        return action, report
 
 
 class Cargo:
@@ -108,6 +102,7 @@ class Unit:
         self.cargo.wood = wood
         self.cargo.coal = coal
         self.cargo.uranium = uranium
+        self.compute_travel_range()
 
     def is_worker(self) -> bool:
         return self.type == UNIT_TYPES.WORKER
@@ -130,8 +125,7 @@ class Unit:
         whether or not the unit can build where it is right now
         """
         cell = game_map.get_cell_by_pos(self.pos)
-        if not cell.has_resource() and self.can_act() and (self.cargo.wood + self.cargo.coal + self.cargo.uranium) >= \
-                GAME_CONSTANTS["PARAMETERS"]["CITY_BUILD_COST"]:
+        if not cell.has_resource() and self.can_act() and (self.cargo.wood + self.cargo.coal + self.cargo.uranium) >= GAME_CONSTANTS["PARAMETERS"]["CITY_BUILD_COST"]:
             return True
         return False
 
@@ -143,20 +137,16 @@ class Unit:
 
     def move(self, dir) -> str:
         """
-        return the command to move unit in the given direction
+        return the command to move unit in the given direction, and annotate
         """
         return "m {} {}".format(self.id, dir)
 
-    def move_report(self, dir):
-        action = self.move(dir)
-        if self.is_worker():
-            unit_type = "w"
-        elif self.is_cart():
-            unit_type = "c"
-        else:
-            raise ValueError
-        report = f"{self.id}", action_vector_full[f"{unit_type}_m{dir}"]
-        return action, report
+    def random_move(self) -> str:
+        return "m {} {}".format(self.id, random.choice([
+            DIRECTIONS.NORTH,
+            DIRECTIONS.EAST,
+            DIRECTIONS.SOUTH,
+            DIRECTIONS.WEST]))
 
     def transfer(self, dest_id, resourceType, amount) -> str:
         """
@@ -164,28 +154,11 @@ class Unit:
         """
         return "t {} {} {} {}".format(self.id, dest_id, resourceType, amount)
 
-    def transfer_report(self, dest_unit, resourceType, amount):
-        action = self.transfer(dest_unit.id, resourceType, amount)
-        if self.is_worker():
-            unit_type = "w"
-        elif self.is_cart():
-            unit_type = "c"
-        else:
-            raise ValueError
-        direction = self.pos.direction_to(dest_unit.pos)
-        report = f"{self.id}", action_vector_full[f"{unit_type}_t{direction}{resourceType}"]
-        return action, report
-
     def build_city(self) -> str:
         """
         return the command to build a city right under the worker
         """
         return "bcity {}".format(self.id)
-
-    def build_city_report(self):
-        action = self.build_city()
-        report = f"{self.id}", action_vector_full["w_build"]
-        return action, report
 
     def pillage(self) -> str:
         """
@@ -193,7 +166,25 @@ class Unit:
         """
         return "p {}".format(self.id)
 
-    def pillage_report(self):
-        action = self.pillage()
-        report = f"{self.id}", action_vector_full["w_pillage"]
-        return action, report
+    def compute_travel_range(self, turn_info=None) -> None:
+        fuel_per_turn = GAME_CONSTANTS["PARAMETERS"]["LIGHT_UPKEEP"]["WORKER"]
+        cooldown_required = GAME_CONSTANTS["PARAMETERS"]["UNIT_ACTION_COOLDOWN"]["WORKER"]
+        day_length = GAME_CONSTANTS["PARAMETERS"]["DAY_LENGTH"]
+        night_length = GAME_CONSTANTS["PARAMETERS"]["NIGHT_LENGTH"]
+
+        turn_survivable = (self.cargo.wood // GAME_CONSTANTS["PARAMETERS"]["RESOURCE_TO_FUEL_RATE"]["WOOD"]) // fuel_per_turn
+        turn_survivable += self.cargo.coal + self.cargo.uranium  # assumed RESOURCE_TO_FUEL_RATE > fuel_per_turn
+        self.night_turn_survivable = turn_survivable
+        self.night_travel_range = turn_survivable // cooldown_required  # plus one perhaps
+
+        if turn_info:
+            turns_to_night, turns_to_dawn, is_day_time = turn_info
+            travel_range = max(1, turns_to_night // cooldown_required + self.night_travel_range - cooldown_required)
+            if self.night_turn_survivable > turns_to_dawn and not is_day_time:
+                travel_range = day_length // cooldown_required + self.night_travel_range
+            if self.night_turn_survivable > night_length:
+                travel_range = day_length // cooldown_required + self.night_travel_range
+            self.travel_range = travel_range
+
+    def encode_tuple_for_cmp(self):
+        return (self.cooldown, self.cargo.wood, self.cargo.coal, self.cargo.uranium, self.is_worker())
