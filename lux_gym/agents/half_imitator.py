@@ -63,9 +63,12 @@ def get_policy():
         #                 actions.append(city_tile.research())
         #                 player.research_points += 1
 
+        t1 = time.perf_counter()
         current_game_state.calculate_features(missions)
         actions_by_cities = make_city_actions(current_game_state, missions)
         actions += actions_by_cities
+        t2 = time.perf_counter()
+        print(f"2. City tiles prediction: {t2 - t1:0.4f} seconds")
 
         # workers
         if proc_observations["workers"]:
@@ -75,7 +78,7 @@ def get_policy():
             acts, vals = predict(workers_obs)
             acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             t2 = time.perf_counter()
-            print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
+            print(f"3. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
                 workers_actions_probs_dict[key] = acts[i, :].numpy()
                 max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))

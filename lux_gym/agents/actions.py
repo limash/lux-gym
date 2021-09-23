@@ -54,6 +54,7 @@ def make_city_actions(game_state: Game, missions: Missions, DEBUG=False) -> List
 
     city_tiles.sort(key=lambda city_tile:
         (city_tile.pos.x*game_state.x_order_coefficient, city_tile.pos.y*game_state.y_order_coefficient))
+    n_city_tiles = len(city_tiles)
 
     for city_tile in city_tiles:
         if not city_tile.can_act():
@@ -85,7 +86,7 @@ def make_city_actions(game_state: Game, missions: Missions, DEBUG=False) -> List
             build_workers(city_tile)
             continue
 
-        if not player.researched_uranium():
+        if not player.researched_uranium() and n_city_tiles > 10:
             print("research", tuple(city_tile.pos))
             do_research(city_tile)
             continue
