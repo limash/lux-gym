@@ -6,11 +6,11 @@ import tensorflow as tf
 from lux_ai import models, tools
 from lux_gym.envs.lux.action_vectors import meaning_vector, actions_number
 import lux_gym.envs.tools as env_tools
-from lux_gym.envs.lux.game import Missions
+# from lux_gym.envs.lux.game import Missions
 
 from lux_gym.agents.actions import make_city_actions
 
-missions = Missions()
+# missions = Missions()
 
 
 def get_policy():
@@ -31,7 +31,7 @@ def get_policy():
         return model(obs)
 
     def policy(current_game_state, observation):
-        global missions
+        # global missions
 
         actions = []
         workers_actions_probs_dict = {}
@@ -51,24 +51,25 @@ def get_policy():
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
-        # player = current_game_state.players[observation.player]
-        # unit_count = len(player.units)
-        # for city in player.cities.values():
-        #     for city_tile in city.citytiles:
-        #         if city_tile.can_act():
-        #             if unit_count < player.city_tile_count:
-        #                 actions.append(city_tile.build_worker())
-        #                 unit_count += 1
-        #             elif not player.researched_uranium():
-        #                 actions.append(city_tile.research())
-        #                 player.research_points += 1
+        player = current_game_state.players[observation.player]
+        n_city_tiles = player.city_tile_count
+        unit_count = len(player.units)
+        for city in player.cities.values():
+            for city_tile in city.citytiles:
+                if city_tile.can_act():
+                    if unit_count < player.city_tile_count:
+                        actions.append(city_tile.build_worker())
+                        unit_count += 1
+                    elif not player.researched_uranium() and n_city_tiles > 10:
+                        actions.append(city_tile.research())
+                        player.research_points += 1
 
-        t1 = time.perf_counter()
-        current_game_state.calculate_features(missions)
-        actions_by_cities = make_city_actions(current_game_state, missions)
-        actions += actions_by_cities
-        t2 = time.perf_counter()
-        print(f"2. City tiles prediction: {t2 - t1:0.4f} seconds")
+        # t1 = time.perf_counter()
+        # current_game_state.calculate_features(missions)
+        # actions_by_cities = make_city_actions(current_game_state, missions)
+        # actions += actions_by_cities
+        # t2 = time.perf_counter()
+        # print(f"2. City tiles prediction: {t2 - t1:0.4f} seconds")
 
         # workers
         if proc_observations["workers"]:
