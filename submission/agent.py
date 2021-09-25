@@ -149,7 +149,7 @@ def get_policy():
         # t2 = time.perf_counter()
         # print(f"2. City tiles prediction: {t2 - t1:0.4f} seconds")
         player = current_game_state.players[observation.player]
-        n_city_tiles = player.city_tile_count
+        # n_city_tiles = player.city_tile_count
         unit_count = len(player.units)
         for city in player.cities.values():
             for city_tile in city.citytiles:
@@ -157,7 +157,7 @@ def get_policy():
                     if unit_count < player.city_tile_count:
                         actions.append(city_tile.build_worker())
                         unit_count += 1
-                    elif not player.researched_uranium() and n_city_tiles > 10:
+                    elif not player.researched_uranium():  # and n_city_tiles > 2:
                         actions.append(city_tile.research())
                         player.research_points += 1
 
@@ -167,7 +167,7 @@ def get_policy():
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             acts, vals = predict(workers_obs)
-            # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
+            acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
