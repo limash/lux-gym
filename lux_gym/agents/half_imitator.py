@@ -52,7 +52,7 @@ def get_policy():
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
         player = current_game_state.players[observation.player]
-        n_city_tiles = player.city_tile_count
+        # n_city_tiles = player.city_tile_count
         unit_count = len(player.units)
         for city in player.cities.values():
             for city_tile in city.citytiles:
@@ -60,7 +60,7 @@ def get_policy():
                     if unit_count < player.city_tile_count:
                         actions.append(city_tile.build_worker())
                         unit_count += 1
-                    elif not player.researched_uranium() and n_city_tiles > 10:
+                    elif not player.researched_uranium():  # and n_city_tiles > 2:
                         actions.append(city_tile.research())
                         player.research_points += 1
 
