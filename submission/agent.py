@@ -64,8 +64,8 @@ class ResidualModel(keras.Model):
                                             activation=keras.activations.tanh)
 
     def call(self, inputs, training=False, mask=None):
-        # features = inputs
-        features = tf.concat([inputs[:, :, :, :36], inputs[:, :, :, 37:38], inputs[:, :, :, 39:]], axis=-1)
+        features = inputs
+        # features = tf.concat([inputs[:, :, :, :36], inputs[:, :, :, 37:38], inputs[:, :, :, 39:]], axis=-1)
 
         x = features
 
