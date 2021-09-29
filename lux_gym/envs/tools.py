@@ -252,7 +252,7 @@ def process(observation, current_game_state):
             A2[22, x, y] = current_city_tiles_count / CITY_TILES_IN_CITY_BOUND
             A2[23, x, y] = UPKEEP_BOUND_PER_TILE / current_light_upkeep
             A2[24, x, y] = current_fuel / FUEL_BOUND
-            A2[25, x, y] = current_fuel / min(10, to_next_day) * current_light_upkeep  # ratio to survive
+            A2[25, x, y] = current_fuel / (min(10, to_next_day) * current_light_upkeep)  # ratio to survive
 
             # common group
             A2[26, x, y] = city_tiles_count / CITY_TILES_BOUND
