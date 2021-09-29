@@ -1,16 +1,15 @@
-import os
+# import os
 import time
-import pickle
+# import pickle
 
-import numpy as np
+# import numpy as np
 import builtins as __builtin__
 
-from lux_gym.envs.lux.game import Game, Mission, Missions
+# from lux_gym.envs.lux.game import Game, Mission, Missions
 import lux_gym.envs.lux.annotate as annotate
 
-from actions import *
-from heuristics import *
-from typing import DefaultDict
+from lux_gym.agents.actions import *
+from lux_gym.agents.heuristics import *
 
 game_state = Game()
 missions = Missions()
@@ -101,6 +100,14 @@ def annotate_movements(game_state: Game, actions_by_units: List[str]):
     return annotations
 
 
+def get_policy():
+    def policy(current_game_state, observation):
+        global missions
+        actions, _, missions = game_logic(current_game_state, missions)
+        return actions, None, None, None
+    return policy
+
+
 def agent(observation, configuration, DEBUG=False):
     if DEBUG: print = __builtin__.print
     else: print = lambda *args: None
@@ -130,3 +137,4 @@ def agent(observation, configuration, DEBUG=False):
     game_state.compute_start_time = time.time()
     actions, game_state, missions = game_logic(game_state, missions)
     return actions
+

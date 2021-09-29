@@ -1,15 +1,14 @@
 from lux_gym.envs.lux.game import Game
-from lux_gym.agents import half_imitator
+from lux_gym.agents import half_imitator, title_agent
 import lux_gym.envs.tools as tools
 
 game_state = None
 
 
-def get_policy(name):
-    policies = {
-                "half_imitator": half_imitator.get_policy(),
-                }
-    return policies[name]
+policies = {
+            "half_imitator": half_imitator.get_policy,
+            "title_agent": title_agent.get_policy,
+            }
 
 
 def get_agent(policy_name, is_gym=True):
@@ -24,7 +23,7 @@ def get_agent(policy_name, is_gym=True):
         agent or gym_agent
     """
 
-    policy = get_policy(policy_name)
+    policy = policies[policy_name]()
 
     def agent(observation, configuration):
         """This agent is valid for submission."""
@@ -59,7 +58,7 @@ def get_agent(policy_name, is_gym=True):
 def get_processing_agent(policy_name):
     """The agents, which return processed data with actions. For trajectories collection. """
 
-    policy = get_policy(policy_name)
+    policy = policies[policy_name]()
 
     def gym_agent(observation, configuration, current_game_state):
         """This agent is valid for a gym environment with several players."""
