@@ -125,12 +125,61 @@ def process(observation, current_game_state):
     # map data, define resources and roads, 0 or 1 for bool, 0 to around 1 for float;
     # layers:
     # 0 - a resource
+    # 1 - is wood
+    # 2 - wood amount
+    # 3 - is coal
+    # 4 - coal amount
+    # 5 - is uranium
+    # 6 - uranium amount
+    # 7 - fuel equivalent
+    # 8 - if a resource is available for the player, 1 when ready
+    # 9 - a road lvl
+    # 10 - 19 for coordinates
+
+    # number_of_resources_layers = 20
+    # A1 = np.zeros((number_of_resources_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
+    # for yy in range(height):
+    #     for xx in range(width):
+    #         cell = current_game_state.map.get_cell(xx, yy)
+    #         x, y = yy + shift, xx + shift
+    #         if cell.has_resource():
+    #             A1[0, x, y] = 1  # a resource at the point
+    #             resource = cell.resource
+    #             if resource.type == "wood":
+    #                 A1[1, x, y] = 1
+    #                 wood_amount = resource.amount
+    #                 A1[2, x, y] = wood_amount / WOOD_BOUND
+    #                 fuel = wood_amount * WOOD_FUEL_VALUE
+    #                 A1[8, x, y] = 1  # wood is always available
+    #             elif resource.type == "coal":
+    #                 A1[3, x, y] = 1
+    #                 coal_amount = resource.amount
+    #                 A1[4, x, y] = coal_amount / COAL_BOUND
+    #                 fuel = coal_amount * COAL_FUEL_VALUE
+    #                 A1[8, x, y] = min(player_research_points / COAL_RESEARCH_POINTS, 1)
+    #             elif resource.type == "uranium":
+    #                 A1[5, x, y] = 1
+    #                 uran_amount = resource.amount
+    #                 A1[6, x, y] = uran_amount / URAN_BOUND
+    #                 fuel = uran_amount * URAN_FUEL_VALUE
+    #                 A1[8, x, y] = min(player_research_points / URAN_RESEARCH_POINTS, 1)
+    #             else:
+    #                 raise ValueError
+    #             A1[7, x, y] = fuel / FUEL_BOUND
+    #         A1[9, x, y] = cell.road / MAX_ROAD
+    #         A1[10:15, x, y] = to_binary(np.asarray((x,), dtype=np.uint8), m=5)
+    #         A1[15:20, x, y] = to_binary(np.asarray((y,), dtype=np.uint8), m=5)
+
+    # map data, define resources and roads, 0 or 1 for bool, 0 to around 1 for float;
+    # layers:
+    # 0 - a resource
     # 1 - is available
     # 2 - amount
     # 3 - fuel equivalent
     # 4 - a road lvl
-    # 5 - 15 for coordinates
-    number_of_resources_layers = 15
+    # 5 - 14 for coordinates
+    # 15 - next available resource
+    number_of_resources_layers = 16
     A1 = np.zeros((number_of_resources_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
     for yy in range(height):
         for xx in range(width):
@@ -151,12 +200,16 @@ def process(observation, current_game_state):
                         coal_amount = resource.amount
                         A1[2, x, y] = coal_amount / COAL_BOUND
                         fuel = coal_amount * COAL_FUEL_VALUE
+                    else:
+                        A1[15, x, y] = 1
                 elif resource.type == "uranium":
                     if player_research_points >= URAN_RESEARCH_POINTS:
                         A1[1, x, y] = 1
                         uran_amount = resource.amount
                         A1[2, x, y] = uran_amount / URAN_BOUND
                         fuel = uran_amount * URAN_FUEL_VALUE
+                    elif player_research_points >= URAN_RESEARCH_POINTS - 50:
+                        A1[15, x, y] = 1
                 else:
                     raise ValueError
                 A1[3, x, y] = fuel / FUEL_BOUND
