@@ -64,8 +64,14 @@ class ResidualModel(keras.Model):
                                             activation=keras.activations.tanh)
 
     def call(self, inputs, training=False, mask=None):
-        features = inputs
+        # features = inputs
         # features = tf.concat([inputs[:, :, :, :36], inputs[:, :, :, 37:38], inputs[:, :, :, 39:]], axis=-1)
+        features = tf.concat([inputs[:, :, :, :1],
+                              inputs[:, :, :, 4:10],
+                              inputs[:, :, :, 15:42],
+                              inputs[:, :, :, 43:44],
+                              inputs[:, :, :, 45:],
+                              ], axis=-1)
 
         x = features
 
@@ -107,7 +113,7 @@ class ResidualModel(keras.Model):
 
 
 def get_policy():
-    feature_maps_shape = (32, 32, 59)
+    feature_maps_shape = (32, 32, 61)
     model = ResidualModel(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
