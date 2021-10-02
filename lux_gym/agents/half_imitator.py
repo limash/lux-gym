@@ -17,6 +17,7 @@ def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     model = models.actor_critic_base(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
+    dummy_input, (_, _) = tools.squeeze_transform(dummy_input, (None, None))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
     try:
@@ -69,6 +70,10 @@ def get_policy():
         print(f"Step: {observation['step']}; Player: {observation['player']}")
         t1 = time.perf_counter()
         proc_observations = env_tools.get_separate_outputs(observation, current_game_state)
+        for key, value in proc_observations["workers"].items():
+            value = tf.cast(value, dtype=tf.float32)
+            obs_squeezed, (_, _) = tools.squeeze_transform(value, (None, None))
+            proc_observations["workers"][key] = obs_squeezed
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
@@ -97,12 +102,12 @@ def get_policy():
         if proc_observations["workers"]:
             t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
-            workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
+            # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             acts, vals = predict(workers_obs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             logs = tf.math.log(acts)
             t2 = time.perf_counter()
-            print(f"3. Workers prediction: {t2 - t1:0.4f} seconds")
+            print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
                 workers_actions_probs_dict[key] = acts[i, :].numpy()
                 max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
