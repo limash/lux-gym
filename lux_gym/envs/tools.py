@@ -454,6 +454,7 @@ def process(observation, current_game_state):
     return outputs
 
 
+@tf.function
 def squeeze(feature_layers_in):
     features = feature_layers_in
     # features_v = features.numpy()
