@@ -465,21 +465,22 @@ def get_separate_outputs(observation, current_game_state):
         for k, header in units_headers.items():
             head, (x, y), X, is_worker = header
             mod_stem = np.copy(stem)
+            order_stem = np.copy(stem[x, y, 4:9])
             if X is not None:
                 mod_stem[x, y, 9:18] = X
-                if stem[x, y, 4] == 0:
-                    stem[x, y, 4] = 1
-                elif stem[x, y, 4] == 1:
-                    if stem[x, y, 5] == 0:
-                        stem[x, y, 5] = 1
-                    elif stem[x, y, 5] == 1:
-                        if stem[x, y, 6] == 0:
-                            stem[x, y, 6] = 1
-                        elif stem[x, y, 6] == 1:
-                            if stem[x, y, 7] == 0:
-                                stem[x, y, 7] = 1
-                            elif stem[x, y, 7] == 1:
-                                stem[x, y, 8] = 1
+                if order_stem[0] == 0:
+                    order_stem[0] = 1
+                elif order_stem[0] == 1:
+                    if order_stem[1] == 0:
+                        order_stem[1] = 1
+                    elif order_stem[1] == 1:
+                        if order_stem[2] == 0:
+                            order_stem[2] = 1
+                        elif order_stem[2] == 1:
+                            if order_stem[3] == 0:
+                                order_stem[3] = 1
+                            elif order_stem[3] == 1:
+                                order_stem[4] = 1
                             else:
                                 raise ValueError
                         else:
@@ -488,7 +489,7 @@ def get_separate_outputs(observation, current_game_state):
                         raise ValueError
                 else:
                     raise ValueError
-                mod_stem[x, y, 4:9] = stem[x, y, 4:9]
+                mod_stem[x, y, 4:9] = order_stem
             ready_array = np.concatenate((head, mod_stem), axis=-1)
             if is_worker:
                 workers[k] = ready_array
