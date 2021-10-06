@@ -13,54 +13,6 @@ from actions import make_city_actions
 # missions = Missions()
 
 
-def squeeze_transform(obs_base, acts_rews):
-    actions_probs, total_rewards = acts_rews
-    features = obs_base
-    # features_v = features.numpy()
-
-    features_padded = tf.pad(features, tf.constant([[6, 6], [6, 6], [0, 0]]), mode="CONSTANT")
-    # features_padded_v = features_padded.numpy()
-    units_layers = features_padded[:, :, :1]
-    units_coords = tf.cast(tf.where(units_layers), dtype=tf.int32)
-    min_x = units_coords[:, 0] - 6
-    max_x = units_coords[:, 0] + 6
-    min_y = units_coords[:, 1] - 6
-    max_y = units_coords[:, 1] + 6
-    piece = features_padded[min_x[0]: max_x[0] + 1, min_y[0]: max_y[0] + 1, :]
-    # piece_v = piece.numpy()
-
-    features_padded_glob = tf.pad(features,
-                                  tf.constant([[32, 32], [32, 32], [0, 0]]),
-                                  mode="CONSTANT")
-    # features_padded_glob_v = features_padded_glob.numpy()
-    units_layers_glob = features_padded_glob[:, :, :1]
-    units_coords_glob = tf.cast(tf.where(units_layers_glob), dtype=tf.int32)
-    min_x_glob = units_coords_glob[:, 0] - 32
-    max_x_glob = units_coords_glob[:, 0] + 32
-    min_y_glob = units_coords_glob[:, 1] - 32
-    max_y_glob = units_coords_glob[:, 1] + 32
-
-    piece_glob1 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 6:9]
-    piece_glob2 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 15:17]
-    piece_glob3 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 24:27]
-    piece_glob4 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 45:49]
-    piece_glob5 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 60:]
-    piece_glob = tf.concat([piece_glob1, piece_glob2, piece_glob3, piece_glob4, piece_glob5], axis=-1)
-    # 17, 4; 5, 5
-    pooled_piece_glob = tf.squeeze(tf.nn.avg_pool(tf.expand_dims(piece_glob, axis=0), 5, 5, padding="VALID"))
-    # piece_glob_v = piece_glob.numpy()
-    # pooled_piece_glob_v = pooled_piece_glob.numpy()
-
-    piece_filtered = tf.concat([piece[:, :, :1],
-                                piece[:, :, 4:10],
-                                piece[:, :, 15:50],
-                                piece[:, :, 60:],
-                                ], axis=-1)
-    # piece_filtered_v = piece_filtered.numpy()
-    observations = tf.concat([piece_filtered, pooled_piece_glob], axis=-1)
-    return observations, (actions_probs, total_rewards)
-
-
 class ResidualUnit(keras.layers.Layer):
     def __init__(self, filters, initializer, activation, **kwargs):
         super().__init__(**kwargs)
@@ -161,10 +113,9 @@ class ResidualModel(keras.Model):
 
 
 def get_policy():
-    feature_maps_shape = (32, 32, 61)
+    feature_maps_shape = (13, 13, 56)
     model = ResidualModel(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
-    dummy_input, (_, _) = squeeze_transform(dummy_input, (None, None))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
     path = '/kaggle_simulations/agent' if os.path.exists('/kaggle_simulations') else '.'
@@ -215,10 +166,6 @@ def get_policy():
         print(f"Step: {observation['step']}; Player: {observation['player']}")
         t1 = time.perf_counter()
         proc_observations = tools.get_separate_outputs(observation, current_game_state)
-        for key, value in proc_observations["workers"].items():
-            value = tf.cast(value, dtype=tf.float32)
-            obs_squeezed, (_, _) = squeeze_transform(value, (None, None))
-            proc_observations["workers"][key] = obs_squeezed
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
