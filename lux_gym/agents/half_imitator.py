@@ -15,7 +15,7 @@ import lux_gym.envs.tools as env_tools
 
 def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
-    model = models.actor_critic_base(actions_number)
+    model = models.actor_critic_efficient(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     # dummy_input, (_, _) = tools.squeeze_transform(dummy_input, (None, None))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
