@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 
-import tools
+import tools_compare as tools
 from action_vectors import meaning_vector, actions_number
 from game import Game  # , Missions
 from actions import make_city_actions

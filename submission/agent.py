@@ -122,7 +122,7 @@ def actor_critic_efficient(actions_shape):
 
 
 def get_policy():
-    feature_maps_shape = (13, 13, 56)
+    feature_maps_shape = (13, 13, 64)
     model = actor_critic_efficient(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
