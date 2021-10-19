@@ -356,18 +356,20 @@ def process(observation, current_game_state):
         X = np.zeros(9, dtype=np.half)
         if unit.is_worker():
             X[0] = 1
+            cargo_cap = WORKERS_CARGO
         elif unit.is_cart():
             X[1] = 1
+            cargo_cap = CART_CARGO
         else:
             raise ValueError
         if unit.can_act():
             X[2] = 1
         if unit.can_build(current_game_state.map):
             X[3] = 1
-        X[4] = unit.cargo.wood / WORKERS_CARGO
-        X[5] = unit.cargo.coal / WORKERS_CARGO
-        X[6] = unit.cargo.uranium / WORKERS_CARGO
-        X[7] = unit.get_cargo_space_left() / WORKERS_CARGO
+        X[4] = unit.cargo.wood / cargo_cap
+        X[5] = unit.cargo.coal / cargo_cap
+        X[6] = unit.cargo.uranium / cargo_cap
+        X[7] = unit.get_cargo_space_left() / cargo_cap
         X[8] = (unit.cargo.wood * WOOD_FUEL_VALUE +
                 unit.cargo.coal * COAL_FUEL_VALUE +
                 unit.cargo.uranium * URAN_FUEL_VALUE) / FUEL_BOUND
