@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 
 from lux_ai import models, tools
-from lux_gym.envs.lux.action_vectors import meaning_vector, actions_number
+from lux_gym.envs.lux.action_vectors_new import empty_worker_action_vectors
 import lux_gym.envs.tools as env_tools
 # from lux_gym.envs.lux.game import Missions
 
@@ -15,9 +15,9 @@ import lux_gym.envs.tools as env_tools
 
 def get_policy():
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
-    model = models.actor_critic_efficient(actions_number)
+    actions_shape = [item.shape for item in empty_worker_action_vectors]
+    model = models.actor_critic_efficient(actions_shape)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
-    # dummy_input, (_, _) = tools.squeeze_transform(dummy_input, (None, None))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
     try:
@@ -32,25 +32,49 @@ def get_policy():
         return model(obs)
 
     def in_city(game_state, pos):
-        try:
-            city = game_state.map.get_cell_by_pos(pos).citytile
-            return city is not None and city.team == game_state.player_id
-        except:
-            return False
+        # try:
+        city = game_state.map.get_cell_by_pos(pos).citytile
+        return city is not None and city.team == game_state.player_id
+        # except:
+        #     return False
 
-    def call_func(obj, method, args=[]):
+    def call_func(obj, method, args=None):
+        if args is None:
+            args = []
         return getattr(obj, method)(*args)
 
-    unit_actions = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w'), ('move', 'c'), ('build_city',)]
+    movements = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w')]
+    directions = ['n', 'e', 's', 'w']
+    resources = ['wood', 'coal', 'uranium']
 
     def get_action(game_state, plc, unit, dest):
-        for label in np.argsort(plc)[::-1]:
-            act = unit_actions[label]
-            pos = unit.pos.translate(act[-1], 1) or unit.pos
-            if pos not in dest or in_city(game_state, pos):
-                return call_func(unit, *act), pos
+        act_types, move_dirs, trans_dirs, resource_types, value_outputs = plc
+        act_type = np.argsort(act_types)[::-1][0]
 
-        return unit.move('c'), unit.pos
+        if act_type == 0:  # move
+            for label in np.argsort(move_dirs)[::-1]:
+                act = movements[label]
+                pos = unit.pos.translate(act[-1], 1) or unit.pos
+                if pos not in dest or in_city(game_state, pos):
+                    return call_func(unit, *act), pos
+            return unit.move('c'), unit.pos
+        elif act_type == 1:  # transfer
+            label = np.argsort(trans_dirs)[::-1][0]
+            direction = directions[label]
+            pos = unit.pos.translate(direction, 1) or unit.pos
+            dest_unit = game_state.map.get_cell_by_pos(pos).unit
+            if dest_unit is not None and dest_unit.team == game_state.player_id:
+                resource_label = np.argsort(resource_types)[::-1][0]
+                resource_type = resources[resource_label]
+                return unit.transfer(dest_unit.id, resource_type, 2000), unit.pos
+            else:
+                return unit.move('c'), unit.pos
+        elif act_type == 2:  # idle
+            return unit.move('c'), unit.pos
+        elif act_type == 3:  # build
+            return unit.build_city(), unit.pos
+        else:
+            raise ValueError
 
     def policy(current_game_state, observation):
         # global missions
@@ -103,35 +127,23 @@ def get_policy():
             t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
-            acts, vals = predict(workers_obs)
+            outputs = predict(workers_obs)
+            # act_type, move_dir, trans_dir, res, value_output = predict(workers_obs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            logs = tf.math.log(acts)
+            logs = [tf.math.log(output) for output in outputs]
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
-                workers_actions_probs_dict[key] = acts[i, :].numpy()
-                max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
-                action_one_hot = tf.one_hot(max_arg, actions_number)
-                workers_actions_dict[key] = action_one_hot.numpy()
+                # workers_actions_probs_dict[key] = acts[i, :].numpy()
+                # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
+                # action_one_hot = tf.one_hot(max_arg, actions_number)
+                # workers_actions_dict[key] = action_one_hot.numpy()
                 # filter bad actions
                 unit = player.units_by_id[key]
-                pol = logs[i, :].numpy()
+                pol = [log[i, :].numpy() for log in logs]
                 action, pos = get_action(current_game_state, pol, unit, dest)
                 actions.append(action)
                 dest.append(pos)
-                # deserialization
-                # meaning = meaning_vector[max_arg.numpy()]
-                # if meaning[0] == "m":
-                #     action_string = f"{meaning[0]} {key} {meaning[1]}"
-                # elif meaning[0] == "p":
-                #     action_string = f"{meaning[0]} {key}"
-                # elif meaning[0] == "t":
-                #     action_string = f"m {key} c"  # move center instead
-                # elif meaning[0] == "bcity":
-                #     action_string = f"{meaning[0]} {key}"
-                # else:
-                #     raise ValueError
-                # actions.append(action_string)
 
         return actions, actions_dict, actions_probs_dict, proc_observations
 
