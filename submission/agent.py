@@ -3,12 +3,11 @@ import time
 import pickle
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras as keras
 
 import tools
-from action_vectors import meaning_vector, actions_number
+from action_vectors_new import empty_worker_action_vectors
 from game import Game  # , Missions
-from actions import make_city_actions
+# from actions import make_city_actions
 
 # missions = Missions()
 
@@ -20,11 +19,10 @@ def actor_critic_efficient(actions_shape):
     import tensorflow as tf
     import tensorflow.keras as keras
 
-    # import lux_ai.effnetv2_model as eff_model
-    import hparams
-    import effnetv2_configs
-    import utils
-    from effnetv2_model import round_filters, round_repeats, Stem, MBConvBlock, FusedMBConvBlock
+    import lux_ai.hparams as hparams
+    import lux_ai.effnetv2_configs as effnetv2_configs
+    import lux_ai.utils as utils
+    from lux_ai.effnetv2_model import round_filters, round_repeats, Stem, MBConvBlock, FusedMBConvBlock
 
     class EfficientModel(keras.Model):
         def __init__(self, actions_number, **kwargs):
@@ -76,8 +74,18 @@ def actor_critic_efficient(actions_shape):
             self._flatten = keras.layers.Flatten()
 
             self._workers_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
-            self._workers_probs1 = keras.layers.Dense(actions_number, activation="softmax",
-                                                      kernel_initializer=initializer_random)
+            # action type
+            self._workers_probs1_0 = keras.layers.Dense(actions_number[0][0], activation="softmax",
+                                                        kernel_initializer=initializer_random)
+            # movement direction
+            self._workers_probs1_1 = keras.layers.Dense(actions_number[1][0], activation="softmax",
+                                                        kernel_initializer=initializer_random)
+            # transfer direction
+            self._workers_probs1_2 = keras.layers.Dense(actions_number[1][0], activation="softmax",
+                                                        kernel_initializer=initializer_random)
+            # resource to transfer
+            self._workers_probs1_3 = keras.layers.Dense(actions_number[2][0], activation="softmax",
+                                                        kernel_initializer=initializer_random)
             self._baseline = keras.layers.Dense(1, kernel_initializer=initializer_random,
                                                 activation=keras.activations.tanh)
 
@@ -106,12 +114,14 @@ def actor_critic_efficient(actions_shape):
             z = tf.concat([z1, z2], axis=1)
 
             w = self._workers_probs0(z)
-            w = self._workers_probs1(w)
-            probs = w
+            probs0 = self._workers_probs1_0(w)
+            probs1 = self._workers_probs1_1(w)
+            probs2 = self._workers_probs1_2(w)
+            probs3 = self._workers_probs1_3(w)
 
             baseline = self._baseline(tf.concat([y, z], axis=1))
 
-            return probs, baseline
+            return probs0, probs1, probs2, probs3, baseline
 
         def get_config(self):
             pass
@@ -123,7 +133,8 @@ def actor_critic_efficient(actions_shape):
 
 def get_policy():
     feature_maps_shape = (13, 13, 64)
-    model = actor_critic_efficient(actions_number)
+    actions_shape = [item.shape for item in empty_worker_action_vectors]
+    model = actor_critic_efficient(actions_shape)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
@@ -136,26 +147,50 @@ def get_policy():
     def predict(obs):
         return model(obs)
 
-    def in_city(game_state, pos):
-        try:
-            city = game_state.map.get_cell_by_pos(pos).citytile
-            return city is not None and city.team == game_state.player_id
-        except:
-            return False
+    def in_city(curr_game_state, pos):
+        # try:
+        city = curr_game_state.map.get_cell_by_pos(pos).citytile
+        return city is not None and city.team == curr_game_state.player_id
+        # except:
+        #     return False
 
-    def call_func(obj, method, args=[]):
+    def call_func(obj, method, args=None):
+        if args is None:
+            args = []
         return getattr(obj, method)(*args)
 
-    unit_actions = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w'), ('move', 'c'), ('build_city',)]
+    movements = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w')]
+    directions = ['n', 'e', 's', 'w']
+    resources = ['wood', 'coal', 'uranium']
 
-    def get_action(game_state, plc, unit, dest):
-        for label in np.argsort(plc)[::-1]:
-            act = unit_actions[label]
-            pos = unit.pos.translate(act[-1], 1) or unit.pos
-            if pos not in dest or in_city(game_state, pos):
-                return call_func(unit, *act), pos
+    def get_action(curr_game_state, plc, unit, dest):
+        act_types, move_dirs, trans_dirs, resource_types, value_outputs = plc
+        act_type = np.argsort(act_types)[::-1][0]
 
-        return unit.move('c'), unit.pos
+        if act_type == 0:  # move
+            for label in np.argsort(move_dirs)[::-1]:
+                act = movements[label]
+                pos = unit.pos.translate(act[-1], 1) or unit.pos
+                if pos not in dest or in_city(curr_game_state, pos):
+                    return call_func(unit, *act), pos
+            return unit.move('c'), unit.pos
+        elif act_type == 1:  # transfer
+            label = np.argsort(trans_dirs)[::-1][0]
+            direction = directions[label]
+            pos = unit.pos.translate(direction, 1) or unit.pos
+            dest_unit = curr_game_state.map.get_cell_by_pos(pos).unit
+            if dest_unit is not None and dest_unit.team == curr_game_state.player_id:
+                resource_label = np.argsort(resource_types)[::-1][0]
+                resource_type = resources[resource_label]
+                return unit.transfer(dest_unit.id, resource_type, 2000), unit.pos
+            else:
+                return unit.move('c'), unit.pos
+        elif act_type == 2:  # idle
+            return unit.move('c'), unit.pos
+        elif act_type == 3:  # build
+            return unit.build_city(), unit.pos
+        else:
+            raise ValueError
 
     def policy(current_game_state, observation):
         # global missions
@@ -175,6 +210,10 @@ def get_policy():
         print(f"Step: {observation['step']}; Player: {observation['player']}")
         t1 = time.perf_counter()
         proc_observations = tools.get_separate_outputs(observation, current_game_state)
+        # for key, value in proc_observations["workers"].items():
+        #     value = tf.cast(value, dtype=tf.float32)
+        #     obs_squeezed, (_, _) = tools.squeeze_transform(value, (None, None))
+        #     proc_observations["workers"][key] = obs_squeezed
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
@@ -203,36 +242,24 @@ def get_policy():
         if proc_observations["workers"]:
             t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
-            workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
-            acts, vals = predict(workers_obs)
+            # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
+            outputs = predict(workers_obs)
+            # act_type, move_dir, trans_dir, res, value_output = predict(workers_obs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            logs = tf.math.log(acts)
+            logs = [tf.math.log(output) for output in outputs]
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
-                workers_actions_probs_dict[key] = acts[i, :].numpy()
-                max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
-                action_one_hot = tf.one_hot(max_arg, actions_number)
-                workers_actions_dict[key] = action_one_hot.numpy()
+                # workers_actions_probs_dict[key] = acts[i, :].numpy()
+                # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
+                # action_one_hot = tf.one_hot(max_arg, actions_number)
+                # workers_actions_dict[key] = action_one_hot.numpy()
                 # filter bad actions
                 unit = player.units_by_id[key]
-                pol = logs[i, :].numpy()
+                pol = [log[i, :].numpy() for log in logs]
                 action, pos = get_action(current_game_state, pol, unit, dest)
                 actions.append(action)
                 dest.append(pos)
-                # deserialization
-                # meaning = meaning_vector[max_arg.numpy()]
-                # if meaning[0] == "m":
-                #     action_string = f"{meaning[0]} {key} {meaning[1]}"
-                # elif meaning[0] == "p":
-                #     action_string = f"{meaning[0]} {key}"
-                # elif meaning[0] == "t":
-                #     action_string = f"m {key} c"  # move center instead
-                # elif meaning[0] == "bcity":
-                #     action_string = f"{meaning[0]} {key}"
-                # else:
-                #     raise ValueError
-                # actions.append(action_string)
 
         return actions, actions_dict, actions_probs_dict, proc_observations
     return policy
