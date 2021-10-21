@@ -148,11 +148,11 @@ def get_policy():
         return model(obs)
 
     def in_city(curr_game_state, pos):
-        # try:
-        city = curr_game_state.map.get_cell_by_pos(pos).citytile
-        return city is not None and city.team == curr_game_state.player_id
-        # except:
-        #     return False
+        try:
+            city = curr_game_state.map.get_cell_by_pos(pos).citytile
+            return city is not None and city.team == curr_game_state.player_id
+        except:
+            return False
 
     def call_func(obj, method, args=None):
         if args is None:
@@ -178,7 +178,10 @@ def get_policy():
             label = np.argsort(trans_dirs)[::-1][0]
             direction = directions[label]
             pos = unit.pos.translate(direction, 1) or unit.pos
-            dest_unit = curr_game_state.map.get_cell_by_pos(pos).unit
+            try:
+                dest_unit = curr_game_state.map.get_cell_by_pos(pos).unit
+            except IndexError:
+                dest_unit = None
             if dest_unit is not None and dest_unit.team == curr_game_state.player_id:
                 resource_label = np.argsort(resource_types)[::-1][0]
                 resource_type = resources[resource_label]
