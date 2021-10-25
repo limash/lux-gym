@@ -1,5 +1,6 @@
 from lux_gym.envs.lux.game import Game
 from lux_gym.agents import half_imitator, title_agent
+from lux_gym.agents.compare_agent_1 import compare_agent
 import lux_gym.envs.tools as tools
 
 game_state = None
@@ -8,6 +9,7 @@ game_state = None
 policies = {
             "half_imitator": half_imitator.get_policy,
             "title_agent": title_agent.get_policy,
+            "compare_agent": compare_agent.get_policy,
             }
 
 
