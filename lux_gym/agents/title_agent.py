@@ -100,7 +100,7 @@ def annotate_movements(game_state: Game, actions_by_units: List[str]):
     return annotations
 
 
-def get_policy():
+def get_policy(data=None):
     def policy(current_game_state, observation):
         global missions
         actions, _, missions = game_logic(current_game_state, missions)

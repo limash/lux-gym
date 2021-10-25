@@ -11,19 +11,20 @@ policies = {
             }
 
 
-def get_agent(policy_name, is_gym=True):
+def get_agent(policy_name, data=None, is_gym=True):
     """
     The agents, which return actions only.
 
     Args:
         policy_name: valid names are "simple_rb", "ilia_rb", "nathan_rb"
+        data: weights
         is_gym: if False, returns a valid for submission agent,
                 if True, returns a gym agent that needs to know a game state
     Returns:
         agent or gym_agent
     """
 
-    policy = policies[policy_name]()
+    policy = policies[policy_name](data)
 
     def agent(observation, configuration):
         """This agent is valid for submission."""

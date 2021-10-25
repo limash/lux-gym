@@ -14,21 +14,24 @@ import lux_gym.envs.tools as env_tools
 # missions = Missions()
 
 
-def get_policy():
-    dir_path = os.path.dirname(os.path.realpath(__file__))
-    dir_path = os.path.split(os.path.split(dir_path)[0])[0]
+def get_policy(init_data=None):
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     actions_shape = [item.shape for item in empty_worker_action_vectors]
     model = models.actor_critic_residual(actions_shape)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
-    try:
-        with open(dir_path+'/data/units/data.pickle', 'rb') as file:
-            init_data = pickle.load(file)
+    if init_data is not None:
         model.set_weights(init_data['weights'])
-    except FileNotFoundError:
-        pass
+    else:
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        dir_path = os.path.split(os.path.split(dir_path)[0])[0]
+        try:
+            with open(dir_path+'/data/units/data.pickle', 'rb') as file:
+                init_data = pickle.load(file)
+            model.set_weights(init_data['weights'])
+        except FileNotFoundError:
+            pass
 
     @tf.function(experimental_relax_shapes=True)
     def predict(obs):
@@ -50,15 +53,16 @@ def get_policy():
     directions = ['n', 'e', 's', 'w']
     resources = ['wood', 'coal', 'uranium']
 
-    def get_action(game_state, plc, unit, dest):
-        act_types, move_dirs, trans_dirs, resource_types, value_outputs = plc
+    def get_action(curr_game_state, plc, unit, dest):
+        # act_types, move_dirs, trans_dirs, resource_types, value_outputs = plc
+        act_types, move_dirs, trans_dirs, resource_types = plc
         act_type = np.argsort(act_types)[::-1][0]
 
         if act_type == 0:  # move
             for label in np.argsort(move_dirs)[::-1]:
                 act = movements[label]
                 pos = unit.pos.translate(act[-1], 1) or unit.pos
-                if pos not in dest or in_city(game_state, pos):
+                if pos not in dest or in_city(curr_game_state, pos):
                     return call_func(unit, *act), pos
             return unit.move('c'), unit.pos
         elif act_type == 1:  # transfer
@@ -66,10 +70,10 @@ def get_policy():
             direction = directions[label]
             pos = unit.pos.translate(direction, 1) or unit.pos
             try:
-                dest_unit = game_state.map.get_cell_by_pos(pos).unit
+                dest_unit = curr_game_state.map.get_cell_by_pos(pos).unit
             except IndexError:
                 dest_unit = None
-            if dest_unit is not None and dest_unit.team == game_state.player_id:
+            if dest_unit is not None and dest_unit.team == curr_game_state.player_id:
                 resource_label = np.argsort(resource_types)[::-1][0]
                 resource_type = resources[resource_label]
                 return unit.transfer(dest_unit.id, resource_type, 2000), unit.pos
@@ -136,7 +140,7 @@ def get_policy():
             outputs = predict(workers_obs)
             # act_type, move_dir, trans_dir, res, value_output = predict(workers_obs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            logs = [tf.math.log(output) for output in outputs]
+            logs = [tf.math.log(tf.clip_by_value(output, 1.e-32, 1.)) for output in outputs[:-1]]
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
