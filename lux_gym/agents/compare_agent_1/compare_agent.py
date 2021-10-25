@@ -108,7 +108,7 @@ class ResidualModel(keras.Model):
         pass
 
 
-def get_policy():
+def get_policy(init_data=None):
     feature_maps_shape = (13, 13, 56)
     model = ResidualModel(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
