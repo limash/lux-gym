@@ -1,3 +1,4 @@
+import os
 import time
 import pickle
 import numpy as np
@@ -14,14 +15,16 @@ import lux_gym.envs.tools as env_tools
 
 
 def get_policy():
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    dir_path = os.path.split(os.path.split(dir_path)[0])[0]
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     actions_shape = [item.shape for item in empty_worker_action_vectors]
-    model = models.actor_critic_efficient(actions_shape)
+    model = models.actor_critic_residual(actions_shape)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
     try:
-        with open('data/units/data.pickle', 'rb') as file:
+        with open(dir_path+'/data/units/data.pickle', 'rb') as file:
             init_data = pickle.load(file)
         model.set_weights(init_data['weights'])
     except FileNotFoundError:
