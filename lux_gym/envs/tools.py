@@ -456,6 +456,7 @@ def process(observation, current_game_state):
     return outputs
 
 
+@tf.function
 def squeeze(feature_layers_in):
     features = feature_layers_in
     # features_v = features.numpy()
@@ -542,7 +543,7 @@ def get_separate_outputs(observation, current_game_state):
                     raise ValueError
                 mod_stem[x, y, 4:9] = order_stem
             ready_array = np.concatenate((head, mod_stem), axis=-1)
-            ready_array = squeeze(tf.constant(ready_array, dtype=tf.float32)).numpy()
+            ready_array = squeeze(tf.constant(ready_array, dtype=tf.float32)).numpy().astype(dtype=np.half)
             if is_worker:
                 workers[k] = ready_array
             else:
