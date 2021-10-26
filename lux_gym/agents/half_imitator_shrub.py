@@ -17,7 +17,7 @@ import lux_gym.envs.tools as env_tools
 def get_policy(init_data=None):
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     actions_shape = [item.shape for item in empty_worker_action_vectors]
-    model = models.actor_critic_residual(actions_shape)
+    model = models.actor_critic_residual_shrub(actions_shape)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
