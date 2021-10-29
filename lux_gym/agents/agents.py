@@ -7,8 +7,8 @@ game_state = None
 
 
 policies = {
-            "half_imitator_shrub": half_imitator_shrub.get_policy,
-            "half_imitator_six_actions": half_imitator_six_actions.get_policy,
+            "actor_critic_residual_shrub": half_imitator_shrub.get_policy,
+            "actor_critic_residual_six_actions": half_imitator_six_actions.get_policy,
             "title_agent": title_agent.get_policy,
             "compare_agent": compare_agent.get_policy,
             }

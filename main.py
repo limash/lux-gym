@@ -30,7 +30,7 @@ def show_gym(number_of_iterations, agent):
 
 if __name__ == '__main__':
     number_of_games = 10
-    policy_agent = agents.get_processing_agent("half_imitator_six_actions")
+    policy_agent = agents.get_processing_agent("actor_critic_residual_six_actions")
     show_gym(number_of_games, policy_agent)
 
     print("Test a submission style agent.")
