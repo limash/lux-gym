@@ -30,9 +30,6 @@ WORKERS_BOUND = UNITS_BOUND
 CARTS_BOUND = UNITS_BOUND
 CITY_TILES_BOUND = UNITS_BOUND  # since the units number is limited by the city tiles number
 CITY_TILES_IN_CITY_BOUND = 25
-# from https://www.kaggle.com/c/lux-ai-2021/discussion/265886
-UPKEEP_BOUND = 10 * CITY_TILES_IN_CITY_BOUND + 20 * math.sqrt(CITY_TILES_IN_CITY_BOUND)
-UPKEEP_BOUND_PER_TILE = UPKEEP_BOUND / CITY_TILES_IN_CITY_BOUND
 CITIES_BOUND = 10
 
 units_actions_dict = {}
@@ -224,7 +221,7 @@ def process(observation, current_game_state):
     number_of_ct_layers = 8
     A_CT = np.zeros((number_of_ct_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
     for k, city in list(player.cities.items()) + list(opponent.cities.items()):
-        current_light_upkeep = city.get_light_upkeep()
+        current_light_upkeep = city.get_light_upkeep()  # this is the total city upkeep
         current_fuel = city.fuel
         current_city_tiles_count = 0
         for _ in city.citytiles:
@@ -244,7 +241,9 @@ def process(observation, current_game_state):
                 if city_tile.team == player.team:
                     player_city_tiles_coords[f"ct_{x}_{y}"] = (x, y)  # to save only the operable units
             A_CT[4, x, y] = current_city_tiles_count / CITY_TILES_IN_CITY_BOUND
-            A_CT[5, x, y] = UPKEEP_BOUND_PER_TILE / current_light_upkeep
+            # from https://www.kaggle.com/c/lux-ai-2021/discussion/265886
+            upkeep_bound = 3 * current_city_tiles_count + 20 * math.sqrt(current_city_tiles_count)
+            A_CT[5, x, y] = upkeep_bound / current_light_upkeep
             A_CT[6, x, y] = current_fuel / FUEL_BOUND
             A_CT[7, x, y] = min(1, current_fuel / (min(10, to_next_day) * current_light_upkeep))  # ratio to survive
 
