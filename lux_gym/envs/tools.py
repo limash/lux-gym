@@ -140,25 +140,48 @@ def process(observation, current_game_state):
     # 16 - current cycle
     number_of_common_layers = 17
     A_COMMON = np.zeros((number_of_common_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
-    A_COMMON[0, :, :] = player_city_tiles_count / CITY_TILES_BOUND
-    A_COMMON[1, :, :] = opponent_city_tiles_count / CITY_TILES_BOUND
-    A_COMMON[2, :, :] = player_cities_count / CITIES_BOUND
-    A_COMMON[3, :, :] = opponent_cities_count / CITIES_BOUND
+    #
+    A_friendly_vec = np.zeros(number_of_common_layers, dtype=np.half)
+    A_friendly_vec[0] = player_city_tiles_count / CITY_TILES_BOUND
+    A_friendly_vec[1] = opponent_city_tiles_count / CITY_TILES_BOUND
+    A_friendly_vec[2] = player_cities_count / CITIES_BOUND
+    A_friendly_vec[3] = opponent_cities_count / CITIES_BOUND
     if player_units_count >= player_city_tiles_count:
-        A_COMMON[4, :, :] = 1
+        A_friendly_vec[4] = 1
     if opponent_units_count >= opponent_city_tiles_count:
-        A_COMMON[5, :, :] = 1
-    A_COMMON[6, :, :] = player_units_count / UNITS_BOUND
-    A_COMMON[7, :, :] = opponent_units_count / UNITS_BOUND
-    A_COMMON[8, :, :] = min(player_research_points / COAL_RESEARCH_POINTS, 1)
-    A_COMMON[9, :, :] = min(opponent_research_points / COAL_RESEARCH_POINTS, 1)
-    A_COMMON[10, :, :] = min(player_research_points / URAN_RESEARCH_POINTS, 1)
-    A_COMMON[11, :, :] = min(opponent_research_points / URAN_RESEARCH_POINTS, 1)
-    A_COMMON[12, :, :] = 1 - to_next_day / CYCLE_LENGTH
-    A_COMMON[13, :, :] = 1 - to_next_night / CYCLE_LENGTH
-    A_COMMON[14, :, :] = turn / MAX_DAYS
-    A_COMMON[15, :, :] = is_night
-    A_COMMON[16, :, :] = current_cycle / TOTAL_CYCLES
+        A_friendly_vec[5] = 1
+    A_friendly_vec[6] = player_units_count / UNITS_BOUND
+    A_friendly_vec[7] = opponent_units_count / UNITS_BOUND
+    A_friendly_vec[8] = min(player_research_points / COAL_RESEARCH_POINTS, 1)
+    A_friendly_vec[9] = min(opponent_research_points / COAL_RESEARCH_POINTS, 1)
+    A_friendly_vec[10] = min(player_research_points / URAN_RESEARCH_POINTS, 1)
+    A_friendly_vec[11] = min(opponent_research_points / URAN_RESEARCH_POINTS, 1)
+    A_friendly_vec[12] = 1 - to_next_day / CYCLE_LENGTH
+    A_friendly_vec[13] = 1 - to_next_night / CYCLE_LENGTH
+    A_friendly_vec[14] = turn / MAX_DAYS
+    A_friendly_vec[15] = is_night
+    A_friendly_vec[16] = current_cycle / TOTAL_CYCLES
+    #
+    A_enemy_vec = np.zeros(number_of_common_layers, dtype=np.half)
+    A_enemy_vec[0] = opponent_city_tiles_count / CITY_TILES_BOUND
+    A_enemy_vec[1] = player_city_tiles_count / CITY_TILES_BOUND
+    A_enemy_vec[2] = opponent_cities_count / CITIES_BOUND
+    A_enemy_vec[3] = player_cities_count / CITIES_BOUND
+    if opponent_units_count >= opponent_city_tiles_count:
+        A_enemy_vec[4] = 1
+    if player_units_count >= player_city_tiles_count:
+        A_enemy_vec[5] = 1
+    A_enemy_vec[6] = opponent_units_count / UNITS_BOUND
+    A_enemy_vec[7] = player_units_count / UNITS_BOUND
+    A_enemy_vec[8] = min(opponent_research_points / COAL_RESEARCH_POINTS, 1)
+    A_enemy_vec[9] = min(player_research_points / COAL_RESEARCH_POINTS, 1)
+    A_enemy_vec[10] = min(opponent_research_points / URAN_RESEARCH_POINTS, 1)
+    A_enemy_vec[11] = min(player_research_points / URAN_RESEARCH_POINTS, 1)
+    A_enemy_vec[12] = 1 - to_next_day / CYCLE_LENGTH
+    A_enemy_vec[13] = 1 - to_next_night / CYCLE_LENGTH
+    A_enemy_vec[14] = turn / MAX_DAYS
+    A_enemy_vec[15] = is_night
+    A_enemy_vec[16] = current_cycle / TOTAL_CYCLES
 
     # map data, define resources and roads, 0 or 1 for bool, 0 to around 1 for float;
     # layers:
@@ -232,8 +255,10 @@ def process(observation, current_game_state):
             A_CT[0, x, y] = 1
             if city_tile.team == player.team:
                 A_CT[1, x, y] = 1
+                A_COMMON[:, x, y] = A_friendly_vec
             elif city_tile.team == opponent.team:
                 A_CT[2, x, y] = 1
+                A_COMMON[:, x, y] = A_enemy_vec
             else:
                 raise ValueError
             if city_tile.can_act():
@@ -272,8 +297,10 @@ def process(observation, current_game_state):
         A_UNITS[0, x, y] = 1
         if unit.team == player.team:
             A_UNITS[1, x, y] = 1
+            A_COMMON[:, x, y] = A_friendly_vec
         elif unit.team == opponent.team:
             A_UNITS[2, x, y] = 1
+            A_COMMON[:, x, y] = A_enemy_vec
         else:
             raise ValueError
         is_unit_at_home = 1 if A_CT[0, x, y] == 1 else 0
@@ -366,7 +393,7 @@ def process(observation, current_game_state):
     return outputs
 
 
-# @tf.function
+@tf.function
 def squeeze(feature_layers_in):
     features = feature_layers_in
     # features_v = features.numpy()
@@ -405,10 +432,8 @@ def squeeze(feature_layers_in):
     piece_filtered = tf.concat([piece[:, :, :1],
                                 piece[:, :, 4:],
                                 ], axis=-1)
-    common_features = piece_filtered[:, :, 32:49] * piece_filtered[:, :, :1]
     # piece_filtered_v = piece_filtered.numpy()
-    observations = tf.concat([piece_filtered[:, :, :32],
-                              common_features,
+    observations = tf.concat([piece_filtered,
                               pooled_piece_glob], axis=-1)
     return observations
 
