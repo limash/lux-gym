@@ -23,7 +23,7 @@ TOTAL_CYCLES = MAX_DAYS / (DAY_LENGTH + NIGHT_LENGTH)
 WOOD_BOUND = 500
 COAL_BOUND = 500
 URAN_BOUND = 500
-FUEL_BOUND = 20000
+FUEL_BOUND = 10000
 # units and cities
 UNITS_BOUND = 100
 WORKERS_BOUND = UNITS_BOUND
@@ -366,7 +366,7 @@ def process(observation, current_game_state):
     return outputs
 
 
-@tf.function
+# @tf.function
 def squeeze(feature_layers_in):
     features = feature_layers_in
     # features_v = features.numpy()
@@ -405,8 +405,11 @@ def squeeze(feature_layers_in):
     piece_filtered = tf.concat([piece[:, :, :1],
                                 piece[:, :, 4:],
                                 ], axis=-1)
+    common_features = piece_filtered[:, :, 32:49] * piece_filtered[:, :, :1]
     # piece_filtered_v = piece_filtered.numpy()
-    observations = tf.concat([piece_filtered, pooled_piece_glob], axis=-1)
+    observations = tf.concat([piece_filtered[:, :, :32],
+                              common_features,
+                              pooled_piece_glob], axis=-1)
     return observations
 
 
