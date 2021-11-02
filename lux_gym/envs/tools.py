@@ -225,7 +225,8 @@ def process(observation, current_game_state):
                         uran_amount = resource.amount
                         A_RESOURCES[4, x, y] = uran_amount / URAN_BOUND
                         fuel = uran_amount * URAN_FUEL_VALUE
-                    elif player_research_points >= URAN_RESEARCH_POINTS - 100:
+                    # elif player_research_points >= URAN_RESEARCH_POINTS - 100:
+                    else:
                         A_RESOURCES[6, x, y] = 1
                 else:
                     raise ValueError
