@@ -13,6 +13,9 @@ import lux_gym.envs.tools as env_tools
 
 # missions = Missions()
 
+COAL_RESEARCH_POINTS = 50
+URAN_RESEARCH_POINTS = 200
+
 
 def get_policy(init_data=None):
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
@@ -111,13 +114,32 @@ def get_policy(init_data=None):
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
+        total_resources = 0
         player = current_game_state.players[observation.player]
+        player_research_points = player.research_points
+        width, height = current_game_state.map.width, current_game_state.map.height
+        for y in range(height):
+            for x in range(width):
+                cell = current_game_state.map.get_cell(x, y)
+                if cell.has_resource():
+                    resource = cell.resource
+                    if resource.type == "wood":
+                        total_resources += 1
+                    elif resource.type == "coal":
+                        if player_research_points >= COAL_RESEARCH_POINTS - 10:
+                            total_resources += 1
+                    elif resource.type == "uranium":
+                        if player_research_points >= URAN_RESEARCH_POINTS - 10:
+                            total_resources += 1
+                    else:
+                        raise ValueError
+
         n_city_tiles = player.city_tile_count
         unit_count = len(player.units)
-        for city in player.cities.values():
-            for city_tile in city.citytiles:
+        for city in reversed(player.cities.values()):
+            for city_tile in reversed(city.citytiles):
                 if city_tile.can_act():
-                    if unit_count < player.city_tile_count:
+                    if unit_count < player.city_tile_count and unit_count < total_resources:
                         actions.append(city_tile.build_worker())
                         unit_count += 1
                     elif not player.researched_uranium() and n_city_tiles > 2:
