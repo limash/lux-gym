@@ -1,6 +1,7 @@
 from lux_gym.envs.lux.game import Game
 from lux_gym.agents import half_imitator_shrub, half_imitator_six_actions, title_agent
-from lux_gym.agents.compare_agent_1 import compare_agent
+from lux_gym.agents.compare_agent_1 import compare_agent as compare_agent1
+from lux_gym.agents.compare_agent_2 import compare_agent as compare_agent2
 import lux_gym.envs.tools as tools
 
 game_state = None
@@ -10,7 +11,8 @@ policies = {
             "actor_critic_residual_shrub": half_imitator_shrub.get_policy,
             "actor_critic_residual_six_actions": half_imitator_six_actions.get_policy,
             "title_agent": title_agent.get_policy,
-            "compare_agent": compare_agent.get_policy,
+            "compare_agent": compare_agent1.get_policy,
+            "compare_agent_eff": compare_agent2.get_policy,
             }
 
 
