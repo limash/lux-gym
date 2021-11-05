@@ -61,10 +61,10 @@ def get_agent(policy_name, data=None, is_gym=True):
         return agent
 
 
-def get_processing_agent(policy_name):
+def get_processing_agent(policy_name, data=None):
     """The agents, which return processed data with actions. For trajectories collection. """
 
-    policy = policies[policy_name]()
+    policy = policies[policy_name](data)
 
     def gym_agent(observation, configuration, current_game_state):
         """This agent is valid for a gym environment with several players."""

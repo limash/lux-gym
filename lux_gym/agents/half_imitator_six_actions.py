@@ -4,14 +4,10 @@ import pickle
 import numpy as np
 import tensorflow as tf
 
-from lux_ai import models, tools
-from lux_gym.envs.lux.action_vectors import meaning_vector, actions_number
 import lux_gym.envs.tools as env_tools
-# from lux_gym.envs.lux.game import Missions
-
-# from lux_gym.agents.actions import make_city_actions
-
-# missions = Missions()
+from lux_ai import models, tools
+from lux_gym.envs.lux.action_vectors import actions_number
+from lux_gym.envs.lux.action_vectors_new import empty_worker_action_vectors, worker_action_vector, dir_action_vector
 
 COAL_RESEARCH_POINTS = 50
 URAN_RESEARCH_POINTS = 200
@@ -21,7 +17,6 @@ def get_policy(init_data=None):
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
     model = models.actor_critic_residual_six_actions(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
-    # dummy_input, (_, _) = tools.squeeze_transform(dummy_input, (None, None))
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
     if init_data is not None:
@@ -47,7 +42,9 @@ def get_policy(init_data=None):
         except:
             return False
 
-    def call_func(obj, method, args=[]):
+    def call_func(obj, method, args=None):
+        if args is None:
+            args = []
         return getattr(obj, method)(*args)
 
     unit_actions = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w'), ('move', 'c'), ('build_city',)]
@@ -79,10 +76,6 @@ def get_policy(init_data=None):
         print(f"Step: {observation['step']}; Player: {observation['player']}")
         t1 = time.perf_counter()
         proc_observations = env_tools.get_separate_outputs(observation, current_game_state)
-        # for key, value in proc_observations["workers"].items():
-        #     value = tf.cast(value, dtype=tf.float32)
-        #     obs_squeezed, (_, _) = tools.squeeze_transform(value, (None, None))
-        #     proc_observations["workers"][key] = obs_squeezed
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
@@ -118,13 +111,6 @@ def get_policy(init_data=None):
                         actions.append(city_tile.research())
                         player.research_points += 1
 
-        # t1 = time.perf_counter()
-        # current_game_state.calculate_features(missions)
-        # actions_by_cities = make_city_actions(current_game_state, missions)
-        # actions += actions_by_cities
-        # t2 = time.perf_counter()
-        # print(f"2. City tiles prediction: {t2 - t1:0.4f} seconds")
-
         # workers
         dest = []
         if proc_observations["workers"]:
@@ -137,29 +123,39 @@ def get_policy(init_data=None):
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
-                workers_actions_probs_dict[key] = acts[i, :].numpy()
-                max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
-                action_one_hot = tf.one_hot(max_arg, actions_number)
-                workers_actions_dict[key] = action_one_hot.numpy()
-                # filter bad actions
+                # filter bad actions and make actions according to probs
                 unit = player.units_by_id[key]
                 pol = logs[i, :].numpy()
                 action, pos = get_action(current_game_state, pol, unit, dest)
                 actions.append(action)
                 dest.append(pos)
-                # deserialization
-                # meaning = meaning_vector[max_arg.numpy()]
-                # if meaning[0] == "m":
-                #     action_string = f"{meaning[0]} {key} {meaning[1]}"
-                # elif meaning[0] == "p":
-                #     action_string = f"{meaning[0]} {key}"
-                # elif meaning[0] == "t":
-                #     action_string = f"m {key} c"  # move center instead
-                # elif meaning[0] == "bcity":
-                #     action_string = f"{meaning[0]} {key}"
-                # else:
-                #     raise ValueError
-                # actions.append(action_string)
+
+                # prepare action dictionaries to save, if necessary
+                current_act_probs = acts[i, :].numpy()
+                current_arg = int(np.argmax(current_act_probs))
+                action_vectors = empty_worker_action_vectors.copy()
+                action_vectors_probs = empty_worker_action_vectors.copy()
+                if current_arg in {0, 1, 2, 3}:
+                    action_type = "m"
+                    act_probs = tf.nn.softmax(pol[:4])  # normalize action probs
+                    action_vectors_probs[1] = act_probs.numpy()
+                    dir_type = {0: "n", 1: "e", 2: "s", 3: "w"}[current_arg]
+                    action_vectors[1] = dir_action_vector[dir_type]
+                elif current_arg == 4:
+                    action_type = "idle"
+                elif current_arg == 5:
+                    action_type = "bcity"
+                else:
+                    raise ValueError
+                action_vectors[0] = worker_action_vector[action_type]
+                action_vectors_probs[0] = np.hstack((np.sum(current_act_probs[:4]),
+                                                     np.array([0.]),
+                                                     current_act_probs[4:],
+                                                     ))
+                # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
+                # action_one_hot = tf.one_hot(max_arg, actions_number)
+                workers_actions_dict[key] = action_vectors
+                workers_actions_probs_dict[key] = action_vectors_probs
 
         return actions, actions_dict, actions_probs_dict, proc_observations
 
