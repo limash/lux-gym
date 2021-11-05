@@ -137,8 +137,6 @@ def get_policy(init_data=None):
                 action_vectors_probs = empty_worker_action_vectors.copy()
                 if current_arg in {0, 1, 2, 3}:
                     action_type = "m"
-                    act_probs = tf.nn.softmax(pol[:4])  # normalize action probs
-                    action_vectors_probs[1] = act_probs.numpy()
                     dir_type = {0: "n", 1: "e", 2: "s", 3: "w"}[current_arg]
                     action_vectors[1] = dir_action_vector[dir_type]
                 elif current_arg == 4:
@@ -152,6 +150,8 @@ def get_policy(init_data=None):
                                                      np.array([0.]),
                                                      current_act_probs[4:],
                                                      ))
+                act_probs = tf.nn.softmax(pol[:4])  # normalize action probs
+                action_vectors_probs[1] = act_probs.numpy()
                 # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
                 # action_one_hot = tf.one_hot(max_arg, actions_number)
                 workers_actions_dict[key] = action_vectors
