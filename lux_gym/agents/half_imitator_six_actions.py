@@ -1,5 +1,5 @@
 import os
-import time
+# import time
 import pickle
 import numpy as np
 import tensorflow as tf
@@ -49,14 +49,17 @@ def get_policy(init_data=None):
 
     unit_actions = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w'), ('move', 'c'), ('build_city',)]
 
-    def get_action(game_state, plc, unit, dest):
-        for label in np.argsort(plc)[::-1]:
+    def get_action(game_state, action_logs, unit, dest):
+        multiplier = 1
+        for _ in range(4):
+            label = tf.squeeze(tf.random.categorical(action_logs / multiplier, 1))
             act = unit_actions[label]
             pos = unit.pos.translate(act[-1], 1) or unit.pos
             if pos not in dest or in_city(game_state, pos):
-                return call_func(unit, *act), pos
+                return label, call_func(unit, *act), pos
+            multiplier *= 2
 
-        return unit.move('c'), unit.pos
+        return 4, unit.move('c'), unit.pos  # 4 is idle
 
     def policy(current_game_state, observation):
         # global missions
@@ -117,24 +120,23 @@ def get_policy(init_data=None):
             # t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
-            acts, vals = predict(workers_obs)
+            action_probs, vals = predict(workers_obs)
+            action_logs = tf.math.log(action_probs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            logs = tf.math.log(acts)
             # t2 = time.perf_counter()
             # print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
                 # filter bad actions and make actions according to probs
                 unit = player.units_by_id[key]
-                pol = logs[i, :].numpy()
-                action, pos = get_action(current_game_state, pol, unit, dest)
+                current_arg, action, pos = get_action(current_game_state, action_logs[i:i+1, :].numpy(), unit, dest)
                 actions.append(action)
                 dest.append(pos)
 
                 # prepare action dictionaries to save, if necessary
-                current_act_probs = acts[i, :].numpy()
-                current_arg = int(np.argmax(current_act_probs))
+                current_act_probs = action_probs[i, :].numpy()
                 action_vectors = empty_worker_action_vectors.copy()
                 action_vectors_probs = empty_worker_action_vectors.copy()
+                current_arg = int(current_arg)
                 if current_arg in {0, 1, 2, 3}:
                     action_type = "m"
                     dir_type = {0: "n", 1: "e", 2: "s", 3: "w"}[current_arg]
@@ -146,13 +148,12 @@ def get_policy(init_data=None):
                 else:
                     raise ValueError
                 action_vectors[0] = worker_action_vector[action_type]
-                action_vectors_probs[0] = np.hstack((np.sum(current_act_probs[:4]),
-                                                     np.array([0.]),
-                                                     current_act_probs[4:],
+                action_vectors_probs[0] = np.hstack((np.sum(current_act_probs[:4]),  # move
+                                                     np.array([0.]),  # transfer
+                                                     current_act_probs[4:],  # idle, bcity
                                                      ))
-                act_probs = tf.nn.softmax(pol[:4])  # normalize action probs
+                act_probs = tf.nn.softmax(action_logs[i:i+1, :4])  # normalize action probs
                 action_vectors_probs[1] = act_probs.numpy()
-                # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
                 # action_one_hot = tf.one_hot(max_arg, actions_number)
                 workers_actions_dict[key] = action_vectors
                 workers_actions_probs_dict[key] = action_vectors_probs
