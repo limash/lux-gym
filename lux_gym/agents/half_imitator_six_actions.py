@@ -73,11 +73,11 @@ def get_policy(init_data=None):
                         "carts": {},
                         "city_tiles": citytiles_actions_dict}
 
-        print(f"Step: {observation['step']}; Player: {observation['player']}")
-        t1 = time.perf_counter()
+        # print(f"Step: {observation['step']}; Player: {observation['player']}")
+        # t1 = time.perf_counter()
         proc_observations = env_tools.get_separate_outputs(observation, current_game_state)
-        t2 = time.perf_counter()
-        print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
+        # t2 = time.perf_counter()
+        # print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
         total_resources = 0
         player = current_game_state.players[observation.player]
@@ -114,14 +114,14 @@ def get_policy(init_data=None):
         # workers
         dest = []
         if proc_observations["workers"]:
-            t1 = time.perf_counter()
+            # t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             acts, vals = predict(workers_obs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             logs = tf.math.log(acts)
-            t2 = time.perf_counter()
-            print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
+            # t2 = time.perf_counter()
+            # print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
                 # filter bad actions and make actions according to probs
                 unit = player.units_by_id[key]
