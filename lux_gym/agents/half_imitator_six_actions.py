@@ -151,9 +151,9 @@ def get_policy(init_data=None):
                 action_vectors_probs[0] = np.hstack((np.sum(current_act_probs[:4]),  # move
                                                      np.array([0.]),  # transfer
                                                      current_act_probs[4:],  # idle, bcity
-                                                     ))
-                act_probs = tf.nn.softmax(action_logs[i:i+1, :4])  # normalize action probs
-                action_vectors_probs[1] = act_probs.numpy()
+                                                     )).astype(dtype=np.half)
+                act_probs = tf.nn.softmax(action_logs[i:i+1, :4])[0]  # normalize action probs
+                action_vectors_probs[1] = act_probs.numpy().astype(dtype=np.half)
                 # action_one_hot = tf.one_hot(max_arg, actions_number)
                 workers_actions_dict[key] = action_vectors
                 workers_actions_probs_dict[key] = action_vectors_probs
