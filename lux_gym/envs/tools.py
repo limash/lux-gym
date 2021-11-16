@@ -187,13 +187,15 @@ def process(observation, current_game_state):
     # layers:
     # 0 - a resource
     # 1 - is wood
-    # 2 - can regrow (only wood with less than 500 can regrow)
-    # 3 - is available
-    # 4 - amount
-    # 5 - fuel equivalent
-    # 6 - next available resource
-    # 7 - a road lvl
-    number_of_resources_layers = 8
+    # 2 - wood amount
+    # 3 - is coal
+    # 4 - coal amount
+    # 5 - is uranium
+    # 6 - uranium amount
+    # 7 - fuel equivalent
+    # 8 - if a resource is available for the player, 1 when ready
+    # 9 - a road lvl
+    number_of_resources_layers = 10
     A_RESOURCES = np.zeros((number_of_resources_layers, MAX_MAP_SIDE, MAX_MAP_SIDE), dtype=np.half)
     for yy in range(height):
         for xx in range(width):
@@ -202,35 +204,28 @@ def process(observation, current_game_state):
             if cell.has_resource():
                 A_RESOURCES[0, x, y] = 1  # a resource at the point
                 resource = cell.resource
-                fuel = 0
                 if resource.type == "wood":
                     A_RESOURCES[1, x, y] = 1
                     wood_amount = resource.amount
-                    if wood_amount < 500:
-                        A_RESOURCES[2, x, y] = 1
-                    A_RESOURCES[3, x, y] = 1
-                    A_RESOURCES[4, x, y] = wood_amount / WOOD_BOUND
+                    A_RESOURCES[2, x, y] = wood_amount / WOOD_BOUND
                     fuel = wood_amount * WOOD_FUEL_VALUE
+                    A_RESOURCES[8, x, y] = 1  # wood is always available
                 elif resource.type == "coal":
-                    if player_research_points >= COAL_RESEARCH_POINTS:
-                        A_RESOURCES[3, x, y] = 1
-                        coal_amount = resource.amount
-                        A_RESOURCES[4, x, y] = coal_amount / COAL_BOUND
-                        fuel = coal_amount * COAL_FUEL_VALUE
-                    else:
-                        A_RESOURCES[6, x, y] = 1
+                    A_RESOURCES[3, x, y] = 1
+                    coal_amount = resource.amount
+                    A_RESOURCES[4, x, y] = coal_amount / COAL_BOUND
+                    fuel = coal_amount * COAL_FUEL_VALUE
+                    A_RESOURCES[8, x, y] = min(player_research_points / COAL_RESEARCH_POINTS, 1)
                 elif resource.type == "uranium":
-                    if player_research_points >= URAN_RESEARCH_POINTS:
-                        A_RESOURCES[3, x, y] = 1
-                        uran_amount = resource.amount
-                        A_RESOURCES[4, x, y] = uran_amount / URAN_BOUND
-                        fuel = uran_amount * URAN_FUEL_VALUE
-                    elif player_research_points >= URAN_RESEARCH_POINTS - 100:
-                        A_RESOURCES[6, x, y] = 1
+                    A_RESOURCES[5, x, y] = 1
+                    uran_amount = resource.amount
+                    A_RESOURCES[6, x, y] = uran_amount / URAN_BOUND
+                    fuel = uran_amount * URAN_FUEL_VALUE
+                    A_RESOURCES[8, x, y] = min(player_research_points / URAN_RESEARCH_POINTS, 1)
                 else:
                     raise ValueError
-                A_RESOURCES[5, x, y] = fuel / FUEL_BOUND
-            A_RESOURCES[7, x, y] = cell.road / MAX_ROAD
+                A_RESOURCES[7, x, y] = fuel / FUEL_BOUND
+            A_RESOURCES[9, x, y] = cell.road / MAX_ROAD
 
     # start with city tiles to know their positions to fill units cells
     # 0 - is city tile
@@ -422,7 +417,7 @@ def squeeze(feature_layers_in):
 
     piece_glob1 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 6:9]
     piece_glob2 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 19:22]
-    piece_glob3 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 27:34]
+    piece_glob3 = features_padded_glob[min_x_glob[0]: max_x_glob[0] + 1, min_y_glob[0]: max_y_glob[0] + 1, 27:36]
     piece_glob = tf.concat([piece_glob1, piece_glob2, piece_glob3], axis=-1)
     # 17, 4; 5, 5
     pooled_piece_glob = tf.squeeze(tf.nn.avg_pool(tf.expand_dims(piece_glob, axis=0), 5, 5, padding="VALID"))
