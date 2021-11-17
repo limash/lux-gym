@@ -25,7 +25,7 @@ def get_policy(init_data=None):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         dir_path = os.path.split(os.path.split(dir_path)[0])[0]
         try:
-            with open(dir_path+'/data/units/data.pickle', 'rb') as file:
+            with open(dir_path + '/data/units/data.pickle', 'rb') as file:
                 init_data = pickle.load(file)
             model.set_weights(init_data['weights'])
         except FileNotFoundError:
@@ -50,14 +50,15 @@ def get_policy(init_data=None):
     unit_actions = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w'), ('move', 'c'), ('build_city',)]
 
     def get_action(game_state, action_logs, unit, dest):
-        multiplier = 1
-        for _ in range(4):
-            label = tf.squeeze(tf.random.categorical(action_logs / multiplier, 1))
+        # multiplier = 1
+        # for _ in range(4):
+        for label in np.argsort(tf.squeeze(action_logs))[::-1]:
+            # label = tf.squeeze(tf.random.categorical(action_logs / multiplier, 1))
             act = unit_actions[label]
             pos = unit.pos.translate(act[-1], 1) or unit.pos
             if pos not in dest or in_city(game_state, pos):
                 return label, call_func(unit, *act), pos
-            multiplier *= 2
+            # multiplier *= 2
 
         return 4, unit.move('c'), unit.pos  # 4 is idle
 
@@ -128,7 +129,7 @@ def get_policy(init_data=None):
             for i, key in enumerate(proc_observations["workers"].keys()):
                 # filter bad actions and make actions according to probs
                 unit = player.units_by_id[key]
-                current_arg, action, pos = get_action(current_game_state, action_logs[i:i+1, :].numpy(), unit, dest)
+                current_arg, action, pos = get_action(current_game_state, action_logs[i:i + 1, :].numpy(), unit, dest)
                 actions.append(action)
                 dest.append(pos)
 
@@ -152,7 +153,7 @@ def get_policy(init_data=None):
                                                      np.array([0.]),  # transfer
                                                      current_act_probs[4:],  # idle, bcity
                                                      )).astype(dtype=np.half)
-                act_probs = tf.nn.softmax(action_logs[i:i+1, :4])[0]  # normalize action probs
+                act_probs = tf.nn.softmax(action_logs[i:i + 1, :4])[0]  # normalize action probs
                 action_vectors_probs[1] = act_probs.numpy().astype(dtype=np.half)
                 # action_one_hot = tf.one_hot(max_arg, actions_number)
                 workers_actions_dict[key] = action_vectors
