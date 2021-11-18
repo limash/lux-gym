@@ -109,7 +109,7 @@ class ResidualModel(keras.Model):
 
 
 def get_policy():
-    feature_maps_shape = (13, 13, 62)
+    feature_maps_shape = (13, 13, 66)
     model = ResidualModel(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
