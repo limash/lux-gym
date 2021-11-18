@@ -193,7 +193,11 @@ def get_policy():
 
         n_city_tiles = player.city_tile_count
         unit_count = len(player.units)
-        for city in reversed(player.cities.values()):
+
+        cities_names = list(player.cities.keys())
+        # for city in reversed(player.cities.values()):  # not available in python 3.7
+        for city_name in reversed(cities_names):
+            city = player.cities[city_name]
             for city_tile in reversed(city.citytiles):
                 if city_tile.can_act():
                     if unit_count < player.city_tile_count and unit_count < total_resources:
