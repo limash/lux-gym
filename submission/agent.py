@@ -3,174 +3,114 @@ import time
 import pickle
 import numpy as np
 import tensorflow as tf
+import tensorflow.keras as keras
 
 import tools
-from action_vectors_new import empty_worker_action_vectors
+from action_vectors import meaning_vector, actions_number
 from game import Game  # , Missions
-# from actions import make_city_actions
+from actions import make_city_actions
 
 # missions = Missions()
 
+COAL_RESEARCH_POINTS = 50
+URAN_RESEARCH_POINTS = 200
 
-def actor_critic_residual(actions_shape):
-    import tensorflow as tf
-    import tensorflow.keras as keras
 
-    class ResidualUnit(keras.layers.Layer):
-        def __init__(self, filters, initializer, activation, **kwargs):
-            super().__init__(**kwargs)
+class ResidualUnit(keras.layers.Layer):
+    def __init__(self, filters, initializer, activation, **kwargs):
+        super().__init__(**kwargs)
 
-            self._filters = filters
-            self._activation = activation
-            self._conv = keras.layers.Conv2D(filters, 3, kernel_initializer=initializer, padding="same", use_bias=False)
-            self._norm = keras.layers.BatchNormalization()
+        self._filters = filters
+        self._activation = activation
+        self._conv = keras.layers.Conv2D(filters, 3, kernel_initializer=initializer, padding="same", use_bias=False)
+        self._norm = keras.layers.BatchNormalization()
 
-        def call(self, inputs, training=False, **kwargs):
-            x = self._conv(inputs)
-            x = self._norm(x, training=training)
-            return self._activation(inputs + x)
+    def call(self, inputs, training=False, **kwargs):
+        x = self._conv(inputs)
+        x = self._norm(x, training=training)
+        return self._activation(inputs + x)
 
-        def compute_output_shape(self, batch_input_shape):
-            batch, x, y, _ = batch_input_shape
-            return [batch, x, y, self._filters]
+    def compute_output_shape(self, batch_input_shape):
+        batch, x, y, _ = batch_input_shape
+        return [batch, x, y, self._filters]
 
-    class CriticBranch(keras.layers.Layer):
-        def __init__(self, filters, initializer, activation, layers, **kwargs):
-            super().__init__(**kwargs)
 
-            self._residual_block = [ResidualUnit(filters, initializer, activation) for _ in range(layers)]
-            self._depthwise = keras.layers.DepthwiseConv2D(13)
-            self._flatten = keras.layers.Flatten()
-            self._fc_128 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+class ResidualModel(keras.Model):
+    def __init__(self, actions_number, **kwargs):
+        super().__init__(**kwargs)
 
-        def call(self, inputs, training=False, **kwargs):
-            x, center = inputs
+        filters = 200
+        layers = 10
 
-            for layer in self._residual_block:
-                x = layer(x, training=training)
+        initializer = keras.initializers.VarianceScaling(scale=2.0, mode='fan_in', distribution='truncated_normal')
+        initializer_random = keras.initializers.random_uniform(minval=-0.03, maxval=0.03)
+        activation = keras.activations.relu
 
-            shape_x = tf.shape(x)
-            y = tf.reshape(x, (shape_x[0], -1, shape_x[-1]))
-            y = tf.reduce_mean(y, axis=1)
+        self._conv = keras.layers.Conv2D(filters, 3, padding="same", kernel_initializer=initializer, use_bias=False)
+        self._norm = keras.layers.BatchNormalization()
+        self._activation = keras.layers.ReLU()
+        self._residual_block = [ResidualUnit(filters, initializer, activation) for _ in range(layers)]
 
-            z1 = (x * center)
-            shape_z = tf.shape(z1)
-            z1 = tf.reshape(z1, (shape_z[0], -1, shape_z[-1]))
-            z1 = tf.reduce_sum(z1, axis=1)
-            z2 = self._depthwise(x)
-            z2 = self._flatten(z2)
-            z = tf.concat([z1, z2], axis=1)
-            z = self._fc_128(z)
+        # self._depthwise = keras.layers.DepthwiseConv2D(32)
+        self._depthwise = keras.layers.DepthwiseConv2D(13)
+        self._flatten = keras.layers.Flatten()
 
-            baseline = self._baseline(tf.concat([y, z], axis=1))
-            return baseline
+        # self._city_tiles_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+        # self._city_tiles_probs1 = keras.layers.Dense(4, activation="softmax",
+        #                                              kernel_initializer=initializer_random)
+        self._workers_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+        self._workers_probs1 = keras.layers.Dense(actions_number, activation="softmax",
+                                                  kernel_initializer=initializer_random)
+        # self._carts_probs0 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+        # self._carts_probs1 = keras.layers.Dense(17, activation="softmax", kernel_initializer=initializer_random)
 
-    class ActorBranch(keras.layers.Layer):
-        def __init__(self, filters, initializer, activation, layers, **kwargs):
-            super().__init__(**kwargs)
+        self._baseline = keras.layers.Dense(1, kernel_initializer=initializer_random,
+                                            activation=keras.activations.tanh)
 
-            self._residual_block = [ResidualUnit(filters, initializer, activation) for _ in range(layers)]
-            self._depthwise = keras.layers.DepthwiseConv2D(13)
-            self._flatten = keras.layers.Flatten()
-            self._fc_128 = keras.layers.Dense(128, activation=activation, kernel_initializer=initializer)
+    def call(self, inputs, training=False, mask=None):
+        features = inputs
+        x = features
 
-        def call(self, inputs, training=False, **kwargs):
-            x, center = inputs
+        x = self._conv(x)
+        x = self._norm(x, training=training)
+        x = self._activation(x)
 
-            for layer in self._residual_block:
-                x = layer(x, training=training)
+        for layer in self._residual_block:
+            x = layer(x, training=training)
 
-            z1 = (x * center)
-            shape_z = tf.shape(z1)
-            z1 = tf.reshape(z1, (shape_z[0], -1, shape_z[-1]))
-            z1 = tf.reduce_sum(z1, axis=1)
-            z2 = self._depthwise(x)
-            z2 = self._flatten(z2)
-            z = tf.concat([z1, z2], axis=1)
-            z = self._fc_128(z)
-            return z
+        shape_x = tf.shape(x)
+        y = tf.reshape(x, (shape_x[0], -1, shape_x[-1]))
+        y = tf.reduce_mean(y, axis=1)
 
-    class ResidualModel(keras.Model):
-        def __init__(self, actions_number, **kwargs):
-            super().__init__(**kwargs)
+        z1 = (x * features[:, :, :, :1])
+        shape_z = tf.shape(z1)
+        z1 = tf.reshape(z1, (shape_z[0], -1, shape_z[-1]))
+        z1 = tf.reduce_sum(z1, axis=1)
+        z2 = self._depthwise(x)
+        z2 = self._flatten(z2)
+        z = tf.concat([z1, z2], axis=1)
 
-            filters = 128
-            # stem_layers = 0
-            branch_layers = 12
+        # t = self._city_tiles_probs0(z)
+        # t = self._city_tiles_probs1(t)
+        w = self._workers_probs0(z)
+        w = self._workers_probs1(w)
+        # c = self._carts_probs0(z)
+        # c = self._carts_probs1(c)
+        # probs = tf.concat([t, w, c], axis=1)
+        # probs = probs * actions_mask
+        probs = w
 
-            initializer = keras.initializers.VarianceScaling(scale=2.0, mode='fan_in', distribution='truncated_normal')
-            initializer_random = keras.initializers.random_uniform(minval=-0.03, maxval=0.03)
-            activation = keras.activations.relu
+        baseline = self._baseline(tf.concat([y, z], axis=1))
 
-            self._root = keras.layers.Conv2D(filters, 3, padding="same", kernel_initializer=initializer, use_bias=False)
-            self._root_norm = keras.layers.BatchNormalization()
-            self._root_activation = keras.layers.ReLU()
-            # self._stem = [ResidualUnit(filters, initializer, activation) for _ in range(stem_layers)]
+        return probs, baseline
 
-            # action type
-            self._action_type_branch = ActorBranch(filters, initializer, activation, branch_layers)
-            self._action_type = keras.layers.Dense(actions_number[0][0], activation="softmax",
-                                                   kernel_initializer=initializer_random)
-            # movement direction
-            self._movement_direction_branch = ActorBranch(filters, initializer, activation, branch_layers)
-            self._movement_direction = keras.layers.Dense(actions_number[1][0], activation="softmax",
-                                                          kernel_initializer=initializer_random)
-            # transfer direction
-            self._transfer_direction_branch = ActorBranch(filters, initializer, activation, branch_layers)
-            self._transfer_direction = keras.layers.Dense(actions_number[1][0], activation="softmax",
-                                                          kernel_initializer=initializer_random)
-            # resource to transfer
-            self._transfer_resource_branch = ActorBranch(filters, initializer, activation, branch_layers)
-            self._transfer_resource = keras.layers.Dense(actions_number[2][0], activation="softmax",
-                                                         kernel_initializer=initializer_random)
-            # critic part
-            self._critic_branch = CriticBranch(filters, initializer, activation, branch_layers)
-            self._baseline = keras.layers.Dense(1, kernel_initializer=initializer_random,
-                                                activation=keras.activations.tanh)
-
-        def call(self, inputs, training=False, mask=None):
-            features = inputs
-            x = features
-
-            x = self._root(x)
-            x = self._root_norm(x, training=training)
-            x = self._root_activation(x)
-
-            # for layer in self._stem:
-            #     x = layer(x, training=training)
-
-            center = features[:, :, :, :1]
-            z = (x, center)
-
-            w1 = self._action_type_branch(z, training=training)
-            action_type_probs = self._action_type(w1)
-
-            w2 = self._movement_direction_branch(z, training=training)
-            movement_direction_probs = self._movement_direction(w2)
-
-            w3 = self._transfer_direction_branch(z, training=training)
-            transfer_direction_probs = self._transfer_direction(w3)
-
-            w4 = self._transfer_resource_branch(z, training=training)
-            transfer_resource_probs = self._transfer_resource(w4)
-
-            # w5 = self._critic_branch(z, training=training)
-            # baseline = self._baseline(w5)
-
-            return (action_type_probs, movement_direction_probs, transfer_direction_probs, transfer_resource_probs,
-                    transfer_resource_probs)
-
-        def get_config(self):
-            pass
-
-    model = ResidualModel(actions_shape)
-    return model
+    def get_config(self):
+        pass
 
 
 def get_policy():
-    feature_maps_shape = (13, 13, 64)
-    actions_shape = [item.shape for item in empty_worker_action_vectors]
-    model = actor_critic_residual(actions_shape)
+    feature_maps_shape = (13, 13, 62)
+    model = ResidualModel(actions_number)
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
@@ -183,10 +123,10 @@ def get_policy():
     def predict(obs):
         return model(obs)
 
-    def in_city(curr_game_state, pos):
+    def in_city(game_state, pos):
         try:
-            city = curr_game_state.map.get_cell_by_pos(pos).citytile
-            return city is not None and city.team == curr_game_state.player_id
+            city = game_state.map.get_cell_by_pos(pos).citytile
+            return city is not None and city.team == game_state.player_id
         except:
             return False
 
@@ -195,41 +135,20 @@ def get_policy():
             args = []
         return getattr(obj, method)(*args)
 
-    movements = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w')]
-    directions = ['n', 'e', 's', 'w']
-    resources = ['wood', 'coal', 'uranium']
+    unit_actions = [('move', 'n'), ('move', 'e'), ('move', 's'), ('move', 'w'), ('move', 'c'), ('build_city',)]
 
-    def get_action(curr_game_state, plc, unit, dest):
-        act_types, move_dirs, trans_dirs, resource_types, value_outputs = plc
-        act_type = np.argsort(act_types)[::-1][0]
+    def get_action(game_state, action_logs, unit, dest):
+        # multiplier = 1
+        # for _ in range(4):
+        for label in np.argsort(tf.squeeze(action_logs))[::-1]:
+            # label = tf.squeeze(tf.random.categorical(action_logs / multiplier, 1))
+            act = unit_actions[label]
+            pos = unit.pos.translate(act[-1], 1) or unit.pos
+            if pos not in dest or in_city(game_state, pos):
+                return label, call_func(unit, *act), pos
+            # multiplier *= 2
 
-        if act_type == 0:  # move
-            for label in np.argsort(move_dirs)[::-1]:
-                act = movements[label]
-                pos = unit.pos.translate(act[-1], 1) or unit.pos
-                if pos not in dest or in_city(curr_game_state, pos):
-                    return call_func(unit, *act), pos
-            return unit.move('c'), unit.pos
-        elif act_type == 1:  # transfer
-            label = np.argsort(trans_dirs)[::-1][0]
-            direction = directions[label]
-            pos = unit.pos.translate(direction, 1) or unit.pos
-            try:
-                dest_unit = curr_game_state.map.get_cell_by_pos(pos).unit
-            except IndexError:
-                dest_unit = None
-            if dest_unit is not None and dest_unit.team == curr_game_state.player_id:
-                resource_label = np.argsort(resource_types)[::-1][0]
-                resource_type = resources[resource_label]
-                return unit.transfer(dest_unit.id, resource_type, 2000), unit.pos
-            else:
-                return unit.move('c'), unit.pos
-        elif act_type == 2:  # idle
-            return unit.move('c'), unit.pos
-        elif act_type == 3:  # build
-            return unit.build_city(), unit.pos
-        else:
-            raise ValueError
+        return 4, unit.move('c'), unit.pos  # 4 is idle
 
     def policy(current_game_state, observation):
         # global missions
@@ -249,56 +168,84 @@ def get_policy():
         print(f"Step: {observation['step']}; Player: {observation['player']}")
         t1 = time.perf_counter()
         proc_observations = tools.get_separate_outputs(observation, current_game_state)
-        # for key, value in proc_observations["workers"].items():
-        #     value = tf.cast(value, dtype=tf.float32)
-        #     obs_squeezed, (_, _) = tools.squeeze_transform(value, (None, None))
-        #     proc_observations["workers"][key] = obs_squeezed
         t2 = time.perf_counter()
         print(f"1. Observations processing: {t2 - t1:0.4f} seconds")
 
+        total_resources = 0
         player = current_game_state.players[observation.player]
+        player_research_points = player.research_points
+        width, height = current_game_state.map.width, current_game_state.map.height
+        for y in range(height):
+            for x in range(width):
+                cell = current_game_state.map.get_cell(x, y)
+                if cell.has_resource():
+                    resource = cell.resource
+                    if resource.type == "wood":
+                        total_resources += 1
+                    elif resource.type == "coal":
+                        if player_research_points >= COAL_RESEARCH_POINTS - 10:
+                            total_resources += 1
+                    elif resource.type == "uranium":
+                        if player_research_points >= URAN_RESEARCH_POINTS - 10:
+                            total_resources += 1
+                    else:
+                        raise ValueError
+
         n_city_tiles = player.city_tile_count
         unit_count = len(player.units)
-        for city in player.cities.values():
-            for city_tile in city.citytiles:
+        for city in reversed(player.cities.values()):
+            for city_tile in reversed(city.citytiles):
                 if city_tile.can_act():
-                    if unit_count < player.city_tile_count:
+                    if unit_count < player.city_tile_count and unit_count < total_resources:
                         actions.append(city_tile.build_worker())
                         unit_count += 1
                     elif not player.researched_uranium() and n_city_tiles > 2:
                         actions.append(city_tile.research())
                         player.research_points += 1
 
-        # t1 = time.perf_counter()
-        # current_game_state.calculate_features(missions)
-        # actions_by_cities = make_city_actions(current_game_state, missions)
-        # actions += actions_by_cities
-        # t2 = time.perf_counter()
-        # print(f"2. City tiles prediction: {t2 - t1:0.4f} seconds")
-
         # workers
         dest = []
         if proc_observations["workers"]:
-            t1 = time.perf_counter()
+            # t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
-            outputs = predict(workers_obs)
-            # act_type, move_dir, trans_dir, res, value_output = predict(workers_obs)
+            action_probs, vals = predict(workers_obs)
+            action_logs = tf.math.log(action_probs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            logs = [tf.math.log(tf.clip_by_value(output, 1.e-32, 1.)) for output in outputs]
-            t2 = time.perf_counter()
-            print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
+            # t2 = time.perf_counter()
+            # print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
-                # workers_actions_probs_dict[key] = acts[i, :].numpy()
-                # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
-                # action_one_hot = tf.one_hot(max_arg, actions_number)
-                # workers_actions_dict[key] = action_one_hot.numpy()
-                # filter bad actions
+                # filter bad actions and make actions according to probs
                 unit = player.units_by_id[key]
-                pol = [log[i, :].numpy() for log in logs]
-                action, pos = get_action(current_game_state, pol, unit, dest)
+                current_arg, action, pos = get_action(current_game_state, action_logs[i:i + 1, :].numpy(), unit, dest)
                 actions.append(action)
                 dest.append(pos)
+
+                # prepare action dictionaries to save, if necessary
+                # current_act_probs = action_probs[i, :].numpy()
+                # action_vectors = empty_worker_action_vectors.copy()
+                # action_vectors_probs = empty_worker_action_vectors.copy()
+                # current_arg = int(current_arg)
+                # if current_arg in {0, 1, 2, 3}:
+                #     action_type = "m"
+                #     dir_type = {0: "n", 1: "e", 2: "s", 3: "w"}[current_arg]
+                #     action_vectors[1] = dir_action_vector[dir_type]
+                # elif current_arg == 4:
+                #     action_type = "idle"
+                # elif current_arg == 5:
+                #     action_type = "bcity"
+                # else:
+                #     raise ValueError
+                # action_vectors[0] = worker_action_vector[action_type]
+                # action_vectors_probs[0] = np.hstack((np.sum(current_act_probs[:4]),  # move
+                #                                      np.array([0.]),  # transfer
+                #                                      current_act_probs[4:],  # idle, bcity
+                #                                      )).astype(dtype=np.half)
+                # act_probs = tf.nn.softmax(action_logs[i:i + 1, :4])[0]  # normalize action probs
+                # action_vectors_probs[1] = act_probs.numpy().astype(dtype=np.half)
+                # # action_one_hot = tf.one_hot(max_arg, actions_number)
+                # workers_actions_dict[key] = action_vectors
+                # workers_actions_probs_dict[key] = action_vectors_probs
 
         return actions, actions_dict, actions_probs_dict, proc_observations
     return policy
@@ -318,6 +265,7 @@ def agent(observation, configuration):
         game_state._update(observation["updates"][2:])
         # game_state.id = observation.player
         game_state.fix_iteration_order()
+        tools.units_actions_dict.clear()
     else:
         game_state._update(observation["updates"])
 
