@@ -4,6 +4,7 @@ from lux_gym.agents import half_imitator_with_transfer
 from lux_gym.agents import title_agent
 from lux_gym.agents.compare_agent_1 import compare_agent as compare_agent1
 from lux_gym.agents.compare_agent_2 import compare_agent as compare_agent2
+from lux_gym.agents.compare_agent_3 import compare_agent as compare_agent3
 import lux_gym.envs.tools as tools
 
 game_state = None
@@ -17,6 +18,7 @@ policies = {
             "title_agent": title_agent.get_policy,
             "compare_agent": compare_agent1.get_policy,
             "compare_agent_eff": compare_agent2.get_policy,
+            "compare_agent_sub13": compare_agent3.get_policy,
             }
 
 
