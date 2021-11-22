@@ -59,6 +59,8 @@ def get_policy(init_data=None):
             if label != 6:  # 6 is transfer
                 act = unit_actions[label]
                 pos = unit.pos.translate(act[-1], 1) or unit.pos
+                if pos not in dest or in_city(game_state, pos):
+                    return label, call_func(unit, *act), pos
             else:
                 dir_label = np.argmax(trans_dirs)
                 direction = directions[dir_label]
@@ -70,13 +72,13 @@ def get_policy(init_data=None):
                 if dest_unit is not None and dest_unit.team == game_state.player_id:
                     resource_label = np.argmax(resource_types)
                     resourceType = resources[resource_label]
-                    act = ('transfer', dest_unit.id, resourceType, 2000)
+                    action = unit.transfer(dest_unit.id, resourceType, 2000)
                 else:
                     act = unit_actions[4]  # idle
                     label = 4  # idle
+                    action = call_func(unit, *act)
                 pos = unit.pos
-            if pos not in dest or in_city(game_state, pos):
-                return label, call_func(unit, *act), pos
+                return label, action, pos
             # multiplier *= 2
 
         return 4, unit.move('c'), unit.pos  # 4 is idle
@@ -195,8 +197,8 @@ def get_policy(init_data=None):
                     dir_probs = tf.nn.softmax(action_logs[i:i + 1, :4])[0]  # normalize action probs
                     action_vectors_probs[1] = dir_probs.numpy().astype(dtype=np.half)
                 elif action_type == "t":
-                    action_vectors_probs[1] = transfer_direction_probs[i, :].numpy()
-                    action_vectors_probs[2] = transfer_resource_probs[i, :].numpy()
+                    action_vectors_probs[1] = transfer_direction_probs[i, :].numpy().astype(dtype=np.half)
+                    action_vectors_probs[2] = transfer_resource_probs[i, :].numpy().astype(dtype=np.half)
                 workers_actions_dict[key] = action_vectors
                 workers_actions_probs_dict[key] = action_vectors_probs
 
