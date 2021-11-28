@@ -122,7 +122,7 @@ def get_policy(init_data=None):
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
             action_probs, vals = predict(workers_obs)
-            action_logs = tf.math.log(action_probs)
+            action_logs = tf.math.log(tf.clip_by_value(action_probs, 1.e-7, 1.))
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
             # t2 = time.perf_counter()
             # print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
