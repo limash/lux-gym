@@ -1,6 +1,7 @@
 from lux_gym.envs.lux.game import Game
 from lux_gym.agents import half_imitator_shrub, half_imitator_six_actions, half_imitator_six_actions_eff
 from lux_gym.agents import half_imitator_sep_six_actions, half_imitator_with_transfer
+from lux_gym.agents import half_imitator_switch_shrub
 from lux_gym.agents import title_agent
 from lux_gym.agents.compare_agent_1 import compare_agent as compare_agent1
 from lux_gym.agents.compare_agent_2 import compare_agent as compare_agent2
@@ -13,6 +14,7 @@ game_state = None
 policies = {
             "actor_critic_residual_shrub": half_imitator_shrub.get_policy,
             "actor_critic_residual_six_actions": half_imitator_six_actions.get_policy,
+            "actor_critic_residual_switch_shrub": half_imitator_switch_shrub.get_policy,
             "actor_critic_sep_residual_six_actions": half_imitator_sep_six_actions.get_policy,
             "actor_critic_residual_with_transfer": half_imitator_with_transfer.get_policy,
             "actor_critic_efficient_six_actions": half_imitator_six_actions_eff.get_policy,
