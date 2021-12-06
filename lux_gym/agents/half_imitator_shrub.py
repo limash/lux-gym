@@ -19,8 +19,8 @@ URAN_RESEARCH_POINTS = 200
 
 def get_policy(init_data=None):
     feature_maps_shape = tools.get_feature_maps_shape('lux_gym:lux-v0')
-    actions_shape = [item.shape for item in empty_worker_action_vectors]
-    model = models.actor_critic_residual_shrub(actions_shape)
+    # actions_shape = [item.shape for item in empty_worker_action_vectors]
+    model = models.actor_critic_residual_shrub()
     dummy_input = tf.ones(feature_maps_shape, dtype=tf.float32)
     dummy_input = tf.nest.map_structure(lambda x: tf.expand_dims(x, axis=0), dummy_input)
     model(dummy_input)
@@ -93,16 +93,16 @@ def get_policy(init_data=None):
         # global missions
 
         actions = []
-        workers_actions_probs_dict = {}
-        workers_actions_dict = {}
-        citytiles_actions_probs_dict = {}
-        citytiles_actions_dict = {}
-        actions_probs_dict = {"workers": workers_actions_probs_dict,
-                              "carts": {},
-                              "city_tiles": citytiles_actions_probs_dict}
-        actions_dict = {"workers": workers_actions_dict,
-                        "carts": {},
-                        "city_tiles": citytiles_actions_dict}
+        # workers_actions_probs_dict = {}
+        # workers_actions_dict = {}
+        # citytiles_actions_probs_dict = {}
+        # citytiles_actions_dict = {}
+        # actions_probs_dict = {"workers": workers_actions_probs_dict,
+        #                       "carts": {},
+        #                       "city_tiles": citytiles_actions_probs_dict}
+        # actions_dict = {"workers": workers_actions_dict,
+        #                 "carts": {},
+        #                 "city_tiles": citytiles_actions_dict}
 
         print(f"Step: {observation['step']}; Player: {observation['player']}")
         t1 = time.perf_counter()
@@ -159,24 +159,53 @@ def get_policy(init_data=None):
             t1 = time.perf_counter()
             workers_obs = np.stack(list(proc_observations["workers"].values()), axis=0)
             # workers_obs = tf.nest.map_structure(lambda z: tf.cast(z, dtype=tf.float32), workers_obs)
-            outputs = predict(workers_obs)
+            mov_probs, act_probs = predict(workers_obs)
             # act_type, move_dir, trans_dir, res, value_output = predict(workers_obs)
             # acts = tf.nn.softmax(tf.math.log(acts) * 2)  # sharpen distribution
-            logs = [tf.math.log(tf.clip_by_value(output, 1.e-32, 1.)) for output in outputs[:-1]]
+            # logs = [tf.math.log(tf.clip_by_value(output, 1.e-32, 1.)) for output in outputs[:-1]]
             t2 = time.perf_counter()
             print(f"2. Workers prediction: {t2 - t1:0.4f} seconds")
             for i, key in enumerate(proc_observations["workers"].keys()):
+                unit = player.units_by_id[key]
+                current_mov_probs = mov_probs[i, :]
+                current_act_probs = act_probs[i, :]
+
+                if current_act_probs[1] > 0.7:
+                    action = unit.build_city()
+                    pos = unit.pos
+                elif current_act_probs[0] > 0.7:
+                    for label in np.argsort(current_mov_probs)[::-1]:
+                        act = movements[label]
+                        pos = unit.pos.translate(act[-1], 1) or unit.pos
+                        if pos not in dest or in_city(current_game_state, pos):
+                            action = call_func(unit, *act)
+                            break
+                        action = unit.move('c')
+                        pos = unit.pos
+
+                    # label = tf.argmax(current_mov_probs)
+                    # act = movements[label]
+                    # pos = unit.pos.translate(act[-1], 1) or unit.pos
+                    # if pos not in dest or in_city(current_game_state, pos):
+                    #     action = call_func(unit, *act)
+                    # else:
+                    #     action = unit.move('c')
+                    #     pos = unit.pos
+                else:
+                    action = unit.move('c')
+                    pos = unit.pos
+
+                actions.append(action)
+                dest.append(pos)
+
+                # pol = [log[i, :].numpy() for log in logs]
+                # action, pos = get_action(current_game_state, pol, unit, dest)
                 # workers_actions_probs_dict[key] = acts[i, :].numpy()
                 # max_arg = tf.squeeze(tf.random.categorical(tf.math.log(acts[i:i+1]), 1))
                 # action_one_hot = tf.one_hot(max_arg, actions_number)
                 # workers_actions_dict[key] = action_one_hot.numpy()
                 # filter bad actions
-                unit = player.units_by_id[key]
-                pol = [log[i, :].numpy() for log in logs]
-                action, pos = get_action(current_game_state, pol, unit, dest)
-                actions.append(action)
-                dest.append(pos)
 
-        return actions, actions_dict, actions_probs_dict, proc_observations
+        return actions, None, None, proc_observations
 
     return policy
